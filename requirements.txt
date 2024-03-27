@@ -1,0 +1,9 @@
+numpy
+xraylarch
+pandas
+matplotlib
+seaborn
+scienceplots
+
+git+https://github.com/Ameyanagi/xasref
+
