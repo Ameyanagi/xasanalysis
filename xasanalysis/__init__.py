@@ -4,7 +4,7 @@ __author__ = """Ameyangi"""
 __email__ = "contact@ameyanagi.com"
 __version__ = "0.1.0"
 
-
+import .xasanalysis
 from .xasanalysis import (
     read_xmu,
     read_QAS_transmission,
