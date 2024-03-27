@@ -1240,16 +1240,10 @@ class XASAnalysis:
                 label=self.reference.label,
             )
         ax_plot.set_xlabel("$R$ ($\mathrm{\AA}$)")
-        # TODO: Add the correct ylabel
-        ax_plot.set_ylabel("$|\chi(R)|$ ($\mathrm{\AA}^{-3}$)")
 
-        # ax.set_xlabel("$k$ ($\mathrm{\AA}^-1$)")
-        # if kweight == 0:
-        #     ax.set_ylabel("$\chi(k)$")
-        # elif kweight == 1:
-        #     ax.set_ylabel("$k\chi(k)$")
-        # elif kweight > 1:
-        #     ax.set_ylabel("$k^{}\chi(k)$".format(int(kweight)))
+        ax_plot.set_ylabel(
+            "$|\chi(R)|$ ($\mathrm{\AA}^{" + str(int(-kweight - 1)) + "}$)"
+        )
 
         if isinstance(plot_range, list):
             ax_plot.set_xlim(plot_range[0], plot_range[1])
