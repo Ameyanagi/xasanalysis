@@ -31,6 +31,18 @@ def read_xmu(
     energy_col: int = 0,
     mu_col: int = 1,
 ) -> Group:
+    """Read the xmu file gereated by Athena and return a larh Group object
+
+    Args:
+        file_path(str): path to the xmu file
+        name(str): name of the group
+        energy_col(int): column of the energy
+        mu_col(int): column of the mu
+
+    Returns:
+        group(Group): larch Group object
+    """
+
     with open(file_path) as f:
         header = ""
         for line in f:
@@ -56,6 +68,22 @@ def read_QAS_transmission(
     it_col: int = 2,
     use_glob=False,
 ) -> Group | list[Group]:
+    """Read the data collected from QAS(transmission mode) and return a larch Group object or a list of larch Group objects
+
+    The group will be sorted by the file name when using the glob option
+
+    Args:
+        file_path(str): path to the file
+        name(str): name of the group
+        energy_col(int): column of the energy
+        i0_col(int): column of the i0
+        it_col(int): column of the it
+        use_glob(bool): use glob to read multiple files
+
+    Returns:
+        Group | list[Group]: larch Group object or a list of larch Group objects(if use_glob = True)
+    """
+
     if use_glob:
         files = glob(file_path)
         files.sort()
@@ -95,6 +123,22 @@ def read_QAS_fluorescence(
     iff_col: int = 4,
     use_glob=False,
 ) -> Group | list[Group]:
+    """Read the data collected from QAS(fluorescence mode) and return a larch Group object or a list of larch Group objects
+
+    The group will be sorted by the file name when using the glob option
+
+    Args:
+        file_path(str): path to the file
+        name(str): name of the group
+        energy_col(int): column of the energy
+        i0_col(int): column of the i0
+        iff_col(int): column of the iff
+        use_glob(bool): use glob to read multiple files
+
+    Returns:
+        Group | list[Group]: larch Group object or a list of larch Group objects(if use_glob=True)
+    """
+
     if use_glob:
         files = glob(file_path)
         files.sort()
@@ -130,6 +174,21 @@ def read_QAS_ref(
     ir_col: int = 3,
     use_glob=False,
 ) -> Group | list[Group]:
+    """Read the data collected from QAS(reference reference foil) and return a larch Group object or a list of larch Group objects
+
+    The group will be sorted by the file name when using the glob option
+
+    Args:
+        file_path(str): path to the file
+        name(str): name of the group
+        energy_col(int): column of the energy
+        it_col(int): column of the it
+        ir_col(int): column of the ir
+        use_glob(bool): use glob to read multiple files
+
+    Returns:
+        Group | list[Group]: larch Group object or a list of larch Group objects(if use_glob=True)
+    """
     if use_glob:
         files = glob(file_path)
         files.sort()
@@ -163,6 +222,23 @@ def read_QAS_SDD(
     i0_col: int = 1,
     use_glob=False,
 ):
+    """Read the data collected from QAS(Silicon Drifts Detector mode) and return a larch Group object or a list of larch Group objects
+
+    The group will be sorted by the file name when using the glob option
+
+    Args:
+        file_path(str): path to the file
+        name(str): name of the group
+        roi(int): roi of the spectrum
+        channels(list[int]): channels used to summed up the spectrum
+        energy_col(int): column of the energy
+        i0_col(int): column of the i0
+        use_glob(bool): use glob to read multiple files
+
+    Returns:
+        Group | list[Group]: larch Group object or a list of larch Group objects(if use_glob=True)
+    """
+
     if use_glob:
         files = glob(file_path)
         files.sort()
@@ -207,13 +283,26 @@ def _residue_shift_normalize(
 ):
     """Residue to calculate the shift and scale of the spectrum, with respect to the reference spectrum using spdist+MAE as the metric
 
+    The main strategy of calculating the metric is the following:
+
+    1. Interpolate the spectrum to the energy grid (for example, 0.5eV spacing, this ensures that each energy contribution will be uniformly weighted)
+    2. Calculate the flattened spectrum using the pre_edge function of xraylarch.
+    3. Interpolate the the flattened spectrum to the energy grid
+    4. Calculate the `spdist metric <https://github.com/Ameyanagi/spdist>`_ between the spectrum and the reference spectrum.
+    5. Calculate the mean absolute error between the spectrum and the reference spectrum
+    6. Return the average of the spdist metric and the mean absolute error
+
+    The spdist is a average of the minimum distance between the two spectra, and the mean absolute error is the average of the absolute vertical distance between the two spectra.
+    spdist metric is more sensitive towards the distance in the diagnal direnction of the two spectra. This is useful to align the spectra with similar features.
+
     Args:
-        p(list): shift and scale
+        p(list): list of parameters. In this case, it is only the shift of the spectrum.
         energy_grid: energy grid for the metric calculation. This will be used for the interpolation of the spectrum
         group(Group): group of the spectrum
-        reference(Group): group of the reference spectrum. The reference spectrum should already be noramlized to reduce the calculation time.
+        reference_x(np.ndarray): energy grid of the reference spectrum
+        reference_y(np.ndarray): mu of the reference spectrum
         e0(float): e0 of the spectrum
-        pre_edge_kws(dict): pre_edge kws
+        pre_edge_kws(dict): pre_edge keywords that will be passed to the pre_edge function
         fit_range(list): the fitting range for the metric calculation
 
     Returns:
@@ -235,7 +324,7 @@ def _residue_shift_normalize(
         np.abs(flat - np.interp(energy_grid, reference_x, reference_y))
     )
 
-    return loss
+    return loss / 2
 
 
 def calc_shift(
@@ -248,18 +337,28 @@ def calc_shift(
 ):
     """Calculate the shift of the spectrum, with respect to the reference spectrum using spdist+MAE as the metric
 
+    The main strategy of calculating the metric is the following:
+
+    1. Interpolate the spectrum to the energy grid (for example, 0.5eV spacing, this ensures that each energy contribution will be uniformly weighted)
+    2. Calculate the flattened spectrum using the pre_edge function of xraylarch.
+    3. Interpolate the the flattened spectrum to the energy grid
+    4. Calculate the `spdist metric <https://github.com/Ameyanagi/spdist>`_ between the spectrum and the reference spectrum.
+    5. Calculate the mean absolute error between the spectrum and the reference spectrum
+    6. Return the average of the spdist metric and the mean absolute error
+
+    The spdist is a average of the minimum distance between the two spectra, and the mean absolute error is the average of the absolute vertical distance between the two spectra.
+    spdist metric is more sensitive towards the distance in the diagnal direnction of the two spectra. This is useful to align the spectra with similar features.
+
     Args:
         energy_grid: energy grid for the metric calculation. This will be used for the interpolation of the spectrum
-        spectrum_x(np.ndarray): energy grid of the spectrum
-        spectrum_y(np.ndarray): mu of the spectrum
-        ref_spectrum_x(np.ndarray): energy grid of the reference spectrum
-        ref_spectrum_y(np.ndarray): mu of the reference spectrum
+        group(Group): group of the spectrum
+        reference(Group): group of the reference spectrum
+        pre_edge_kws(dict): pre_edge keywords that will be passed to the pre_edge function
         fit_range(list): the fitting range for the metric calculation
-        max_shift(float): the maximum shift of the spectrum
+        max_shift(float): maximum shift of the spectrum
 
     Returns:
         shift(float): shift of the spectrum
-        scale(float): scale of the spectrum
         loss(float): loss of the spectrum
     """
 
@@ -304,6 +403,39 @@ def calc_shift(
 
 
 class XASAnalysis:
+    """Class to analyze the XAS data
+
+    This class aims to provide a simple interface to analyze the XAS data. The class is based on the larch library, which is a python library for X-ray absorption spectroscopy.
+    It is a abstraction of my workflow to analyze the XAS data, which includes the following steps:
+
+    1. Read tha data (This will be done by different functions)
+    2. Read the reference data (This will done using the `xasref <https://github.com/Ameyanagi/xasref>`_ module). I am planning to replace the xasref to a better module in the future with the help of beamline scientists.
+    3. Align the data to the reference data. (The energy alignment is usually done using the first derivative of the absorption coefficients. This module uses `spdist metric <https://github.com/Ameyanagi/spdist>`_ and mean absolute error as the metric to align the data)
+    4. Set the e0, pre-edge, autobk, xftf parameters. (This step is not nessaary, but it is useful to use the same parameters for all the groups to get the consistent results)
+    5. Normalization using the pre-edge function of xraylarch
+    6. Background removal using the autobk function of xraylarch
+    7. Fourier transform using the xftf function of xraylarch
+    8. Plotting the results (This class provides the simple interface to plot the results)
+
+    Attributes:
+        groups(dict): dictionary of the groups
+        e0(float): e0 of the spectrum
+        pre_edge_kws(dict): keywords for the pre_edge function
+        autobk_kws(dict): keywords for the autobk function
+        xftf_kws(dict): keywords for the xftf function
+        reference(Group): reference spectrum
+        groups_ref(dict): dictionary of the reference groups
+
+    Args:
+        groups(dict): dictionary of the groups. Default is None.
+        e0(float): e0 of the spectrum. Default is None, which allows a automatic detection.
+        pre_edge_kws(dict): keywords for the pre_edge function. Default is None, which allows a automatic detection.
+        autobk_kws(dict): keywords for the autobk function. Default is None, which allows a automatic detection.
+        xftf_kws(dict): keywords for the xftf function. Default is None, which allows a automatic detection.
+        reference(Group): reference spectrum. Default is None.
+        groups_ref(dict): dictionary of the references in each group. Default is None.
+    """
+
     groups: dict[str, Group]
     e0: float | None
     pre_edge_kws: dict
@@ -345,6 +477,20 @@ class XASAnalysis:
     def add_group(
         self, group: Group, name: str, align_ref: Group | None = None
     ) -> Self:
+        """Add the group to the class
+
+        This function adds the group to the groups dictionary. If the align_ref is provided, it will align the align_ref to the reference spectra that is registered.
+        This function will raise an exception if the align_ref is provided but the reference is not set.
+
+        Args:
+            group(Group): group object
+            name(str): name of the group
+            align_ref(Group): reference group to align the group. Default is None.
+
+        Returns:
+            Self: self. This method can be chained.
+        """
+
         group = deepcopy(group)
 
         if align_ref:
@@ -365,6 +511,23 @@ class XASAnalysis:
         name: str,
         align_ref: Group | list[Group] | None = None,
     ) -> Self:
+        """Add the group to the class. The list of group will be merged prior to the addition
+
+
+        This function adds the group to the groups dictionary. This function will merge the list of the groups before adding to the class.
+
+        If the align_ref is provided, it will align the align_ref to the reference spectra that is registered.
+        This function will raise an exception if the align_ref is provided but the reference is not set.
+        The align_ref can also be a list of groups, which will be merged before aligning the group.
+
+        Args:
+            groups(list[Group]): list of group objects
+            name(str): name of the group
+            align_ref(Group | list[Group]): reference group to align the group. Default is None.
+
+        Returns:
+        Self: self. This method can be chained.
+        """
         if isinstance(align_ref, Group):
             align_ref = deepcopy(align_ref)
             shift = self.calc_shift(align_ref)
@@ -391,6 +554,19 @@ class XASAnalysis:
         return self
 
     def set_reference(self, group: Group, ref_name: str | None) -> Self:
+        """Register the reference spectrum to the class
+
+        This method will register the reference spectrum to the class. The reference spectrum will be used to align the spectra to the reference spectrum.
+        It can also be used for plotting the reference spectrum in the plotting methods.
+
+        Args:
+            group(Group): reference group
+            ref_name(str): name of the reference spectrum
+
+        Retruns:
+            Self: self. This method can be chained.
+        """
+
         if not hasattr(group, "label") and (ref_name is None):
             raise Exception("Please provide a group with label of ref_name")
 
@@ -404,6 +580,19 @@ class XASAnalysis:
     def set_reference_from_db(
         self, ref_name: str, element: str | None = None, label: str | None = None
     ) -> Self:
+        """Register the reference spectrum to the class using the xasref module
+
+        This method will registere the reference spectrum to the class using the xasref module.
+        xasref is a curated list of reference spectrum that is aligned by myself, using the first derivative of the absorption coefficients.
+        This module is planned to be replaced by a better module in the future, with the help of beamline scientists.
+        The reference spectrum will be used to align the spectra to the reference spectrum.
+
+        Args:
+        ref_name(str): name of the reference spectrum in the xasref module
+        element(str): element of the reference spectrum. This is only used for efficient loading of the dictionary and it is not nessesary.
+        label(str): label of the reference spectrum. Default is None, which will use the ref_name.
+
+        """
         ref_dict = get_ref_dict(element)
 
         group = ref_dict[ref_name]["group"]
@@ -420,6 +609,29 @@ class XASAnalysis:
         fit_range: list[float] | None = None,
         max_shift: float = 20.0,
     ) -> float:
+        """Calculate the shift of the spectrum, with respect to the reference spectrum using spdist+MAE as the metric
+
+        This method calculates the shift of the spectrum, with respect to the reference spectrum using spdist+MAE as the metric.
+        The main strategy of calculating the metric is the following:
+
+        1. Interpolate the spectrum to the energy grid (for example, 0.5eV spacing, this ensures that each energy contribution will be uniformly weighted)
+        2. Calculate the flattened spectrum using the pre_edge function of xraylarch.
+        3. Interpolate the the flattened spectrum to the energy grid
+        4. Calculate the `spdist metric <https://github.com/Ameyanagi/spdist>`_ between the spectrum and the reference spectrum.
+        5. Calculate the mean absolute error between the spectrum and the reference spectrum
+        6. Return the average of the spdist metric and the mean absolute error
+
+        The spdist is a average of the minimum distance between the two spectra, and the mean absolute error is the average of the absolute vertical distance between the two spectra.
+        spdist metric is more sensitive towards the distance in the diagnal direnction of the two spectra. This is useful to align the spectra with similar features.
+
+        Args:
+            group(Group): group of the spectrum
+            fit_range(list): the fitting range for the metric calculation. The default is None, which will use the e0 - 20eV to e0 + 80eV.
+            max_shift(float): maximum shift of the spectrum. The default is 20.0. Please increase the value if the spectrum is totally misaligned.
+
+        Returns:
+            shift(float): shift of the spectrum. The calibrated energy is energy + shift.
+        """
         if not hasattr(self, "reference"):
             raise Exception("Please set the reference spectrum")
 
@@ -443,29 +655,90 @@ class XASAnalysis:
         return shift
 
     def remove_group(self, name: str) -> Self:
+        """Remove the group from the class using the name
+
+        Args:
+            name(str): name of the group
+
+        Returns:
+            Self: self. This method can be chained.
+        """
         del self.groups[name]
         return self
 
-    def order_groups(self, order: list[str]):
+    def order_groups(self, order: list[str]) -> Self:
+        """Reorder the groups dictionary
+
+        Args:
+            order(list): order of the groups
+
+        Returns:
+            Self: self. This method can be chained.
+        """
         self.groups = {key: self.groups[key] for key in order}
 
     def set_e0(self, e0: float) -> Self:
+        """Set the e0 of the class
+
+        Args:
+            e0(float): e0 of the class
+
+        Returns:
+            Self: self. This method can be chained.
+        """
         self.e0 = e0
         return self
 
     def set_pre_edge_kws(self, kws) -> Self:
+        """Set the pre_edge keywords
+
+        Args:
+            kws(dict): pre_edge keywords
+
+        Returns:
+            Self: self. This method can be chained.
+        """
         self.pre_edge_kws = kws
         return self
 
     def set_autobk_kws(self, kws) -> Self:
+        """Set the autobk keywords
+
+        Args:
+            kws(dict): autobk keywords
+
+        Returns:
+            Self: self. This method can be chained.
+        """
         self.autobk_kws = kws
         return self
 
     def set_xftf_kws(self, kws) -> Self:
+        """Set the xftf keywords
+
+        Args:
+            kws(dict): xftf keywords
+
+        Returns:
+            Self: self. This method can be chained.
+        """
         self.xftf_kws = kws
         return self
 
     def pre_edge(self, calc_group: bool = True, calc_reference: bool = False) -> Self:
+        """Pre-edge normalization of the groups
+
+        This method will calculate the pre-edge of the groups.
+        It is highly recommended to set the e0 and the pre_edge_kws before running this method.
+        If it is not set, it will automatically detect the parameters for each group, and the parameters will not be consitent between the groups.
+
+        Args:
+            calc_group(bool): calculate the pre-edge of the groups. Default is True.
+            calc_reference(bool): calculate the pre-edge of the reference. Default is False.
+
+        Returns:
+            Self: self. This method can be chained.
+        """
         if calc_reference:
             for group in self.groups_ref.values():
                 if self.e0 is not None:
@@ -483,6 +756,18 @@ class XASAnalysis:
         return self
 
     def autobk(self, skip_pre_edge=True) -> Self:
+        """Background removal of the groups
+
+        This method will calculate the background removal of the groups.
+        It is highly recommended to set the e0 and the autobk_kws before running this method.
+        If it is not set, it will automatically detect the parameters for each group, and the parameters will not be consitent between the groups.
+
+        Args:
+            skip_pre_edge(bool): skip the pre-edge calculation. Default is True.
+
+        Returns:
+            Self: self. This method can be chained.
+        """
         if not skip_pre_edge:
             self.pre_edge()
 
@@ -492,6 +777,18 @@ class XASAnalysis:
         return self
 
     def xftf(self, skip_autobk=True) -> Self:
+        """Fourier transform of the groups
+
+        This method will calculate the Fourier transform of the groups.
+        It is highly recommended to set the e0 and the xftf_kws before running this method.
+        If it is not set, it will automatically detect the parameters for each group, and the parameters will not be consitent between the groups.
+
+        Args:
+            skip_autobk(bool): skip the autobk calculation. Default is True.
+
+        Returns:
+            Self: self. This method can be chained.
+        """
         if not skip_autobk:
             self.autobk()
 
@@ -500,6 +797,18 @@ class XASAnalysis:
         return self
 
     def has_flat(self, groups_name: list[str] | None = None) -> bool:
+        """Check if the groups have the flat attribute
+
+            This method will check if the groups have the flat attribute.
+            The check will only be done for the groups that are in the groups_name list.
+            If the groups_name is None, it will check all the groups.
+
+        Args:
+            groups_name(list): list of the group names. Default is None.
+
+        Returns:
+            bool: True if all the groups have the flat attribute, False otherwise.
+        """
         if groups_name is None:
             groups_name = list(self.groups.keys())
         else:
@@ -516,8 +825,22 @@ class XASAnalysis:
         )
 
     def has_flat_refs(self, groups_name: list[str] | None = None) -> bool:
+        """Check if the reference groups have the flat attribute
+
+        This method will check if the reference groups have the flat attribute.
+        The check will only be done for the groups that are in the groups_name list.
+        If the groups_name is None, it will check all the groups.
+
+        Args:
+            groups_name(list): list of the group names. Default is None.
+
+        Returns:
+            bool: True if all the reference groups have the flat attribute, False otherwise.
+        """
+
         if groups_name is None:
             groups_name = list(self.groups_ref.keys())
+
         else:
             groups_name = [
                 group_name
@@ -533,6 +856,15 @@ class XASAnalysis:
         )
 
     def has_chi(self, groups_name: list[str] | None = None) -> bool:
+        """Check if the groups have the chi attribute
+
+        This mehtod will check if the groups have the chi attribute.
+        The check will only be done for the groups that are in the groups_name list.
+        If the groups_name is None, it will check all the groups.
+
+        Returns:
+            bool: True if all the groups have the chi attribute, False otherwise.
+        """
         if groups_name is None:
             groups_name = list(self.groups.keys())
         else:
@@ -549,6 +881,15 @@ class XASAnalysis:
         )
 
     def has_chir(self, groups_name: list[str] | None = None) -> bool:
+        """Check if the groups have the chir attribute
+
+        This method will check if the groups have the chir attribute.
+        The check will only be done for the groups that are in the groups_name list.
+        If the groups_name is None, it will check all the groups.
+
+        Returns:
+            bool: True if all the groups have the chir attribute, False otherwise.
+        """
         if groups_name is None:
             groups_name = list(self.groups.keys())
         else:
@@ -564,6 +905,14 @@ class XASAnalysis:
         )
 
     def get_e0(self) -> float:
+        """Get the e0 of the class
+
+        This method will return the self.e0 if it is set.
+        If it is not set, it will return the e0 of the first group in the groups dictionary.
+
+        Returns:
+            float: e0 of the class
+        """
         if self.e0 is not None:
             return self.e0
 
@@ -575,6 +924,16 @@ class XASAnalysis:
         return find_e0(group)
 
     def get_kweight(self) -> int:
+        """Get the kweight of the class
+
+        This method will return the kweight of the xftf_kws if it is set.
+        If it is not set, it will return 2.
+        This will be used for the plotting and the Fourier transform.
+
+        Returns:
+            int: kweight of the class
+        """
+
         if not hasattr(self, "xftf_kws"):
             return 2
 
@@ -584,6 +943,14 @@ class XASAnalysis:
         return self.xftf_kws["kweight"]
 
     def find_e0_from_derivative(self, index: int = 0) -> float:
+        """Find the e0 of the group using the first derivative of the absorption coefficients
+
+        This method will find the e0 of the group using the first derivative of the absorption coefficients.
+        This method is useful to find which e0 to use for all of the spectra.
+
+        Returns:
+            float: e0 of the group
+        """
         if index > len(self.groups):
             raise Exception("Index out of range")
         return find_e0(self.groups[self.keys()[index]])
@@ -597,11 +964,34 @@ class XASAnalysis:
         plot_legend: bool = True,
         legend_kws: dict | None = None,
         save_path: str | None = None,
+        ax: Axes | None = None,
     ) -> Axes:
+        """Plot the flattened spectra
+
+        This method will plot the flattend spectra of the groups.
+
+        Args:
+            groups_name(list): list of the group names. Default is None, which will plot all the groups.
+            ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
+            plot_range(str | tuple | list): plot range of the spectra. Default is "full".
+            ref(bool): plot the reference spectrum. Default is False.
+            plot_legend(bool): plot the legend. Default is True.
+            legend_kws(dict): legend keywords. Default is None.
+            save_path(str): save path of the figure. Default is None.
+            ax(Axes): axes of the plot. Default is None.
+
+        Returns:
+            Axes: axes of the plot
+        """
+
         if groups_name is None:
             groups_name = list(self.groups.keys())
 
-        fig, ax = plt.subplots(figsize=(3, 3))
+        # Creat a new figure if the ax is not provided
+        if ax:
+            ax_plot = ax
+        else:
+            fig, ax_plot = plt.subplots(figsize=(3, 3))
 
         # check if the group name is in the groups and not containing the keywords in the ignore_kws
         groups_name = [
@@ -616,42 +1006,43 @@ class XASAnalysis:
 
         for i, group_name in enumerate(groups_name):
             group = self.groups[group_name]
-            ax.plot(group.energy, group.flat, label=group_name)
+            ax_plot.plot(group.energy, group.flat, label=group_name)
 
         if ref and hasattr(self, "reference"):
             if not hasattr(self.reference, "flat"):
                 pre_edge(self.reference, **self.pre_edge_kws)
 
-            ax.plot(
+            ax_plot.plot(
                 self.reference.energy,
                 self.reference.flat,
                 label=self.reference.label,
             )
 
-        ax.set_xlabel("Energy (eV)")
-        ax.set_ylabel("Normalized absorption coefficient")
+        ax_plot.set_xlabel("Energy (eV)")
+        ax_plot.set_ylabel("Normalized absorption coefficient")
 
         if isinstance(plot_range, list):
-            ax.set_xlim(plot_range[0], plot_range[1])
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
         elif isinstance(plot_range, tuple):
-            ax.set_xlim(plot_range[0], plot_range[1])
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
         elif plot_range.lower() == "full":
             pass
         elif plot_range.lower() == "xanes":
             e0 = self.get_e0()
-            ax.set_xlim(e0 - 20, e0 + 80)
+            ax_plot.set_xlim(e0 - 20, e0 + 80)
 
         if plot_legend:
             if legend_kws:
-                ax.legend(**legend_kws)
+                ax_plot.legend(**legend_kws)
             else:
-                ax.legend()
+                ax_plot.legend()
 
-        if save_path:
+        # if ax is not None it will not be saved
+        if ax is None and save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             fig.savefig(save_path, dpi=300)
 
-        return ax
+        return ax_plot
 
     def plot_flat_refs(
         self,
@@ -662,11 +1053,16 @@ class XASAnalysis:
         plot_legend: bool = True,
         legend_kws: dict | None = None,
         save_path: str | None = None,
+        ax: Axes | None = None,
     ) -> Axes:
         if groups_name is None:
             groups_name = list(self.groups_ref.keys())
 
-        fig, ax = plt.subplots(figsize=(3, 3))
+        # Creat a new figure if the ax is not provided
+        if ax:
+            ax_plot = ax
+        else:
+            fig, ax_plot = plt.subplots(figsize=(3, 3))
 
         # check if the group name is in the groups and not containing the keywords in the ignore_kws
         groups_name = [
@@ -681,42 +1077,43 @@ class XASAnalysis:
 
         for i, group_name in enumerate(groups_name):
             group = self.groups_ref[group_name]
-            ax.plot(group.energy, group.flat, label=group_name)
+            ax_plot.plot(group.energy, group.flat, label=group_name)
 
         if ref and hasattr(self, "reference"):
             if not hasattr(self.reference, "flat"):
                 pre_edge(self.reference, **self.pre_edge_kws)
 
-            ax.plot(
+            ax_plot.plot(
                 self.reference.energy,
                 self.reference.flat,
                 label="ref: " + self.reference.label,
             )
 
-        ax.set_xlabel("Energy (eV)")
-        ax.set_ylabel("Normalized absorption coefficient")
+        ax_plot.set_xlabel("Energy (eV)")
+        ax_plot.set_ylabel("Normalized absorption coefficient")
 
         if isinstance(plot_range, list):
-            ax.set_xlim(plot_range[0], plot_range[1])
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
         elif isinstance(plot_range, tuple):
-            ax.set_xlim(plot_range[0], plot_range[1])
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
         elif plot_range.lower() == "full":
             pass
         elif plot_range.lower() == "xanes":
             e0 = self.get_e0()
-            ax.set_xlim(e0 - 20, e0 + 80)
+            ax_plot.set_xlim(e0 - 20, e0 + 80)
 
         if plot_legend:
             if legend_kws:
-                ax.legend(**legend_kws)
+                ax_plot.legend(**legend_kws)
             else:
-                ax.legend()
+                ax_plot.legend()
 
-        if save_path:
+        # if ax is not None it will not be saved
+        if ax is None and save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             fig.savefig(save_path, dpi=300)
 
-        return ax
+        return ax_plot
 
     def plot_k(
         self,
@@ -727,11 +1124,16 @@ class XASAnalysis:
         plot_legend: bool = True,
         legend_kws: dict | None = None,
         save_path: str | None = None,
+        ax: Axes | None = None,
     ) -> Axes:
         if groups_name is None:
             groups_name = list(self.groups.keys())
 
-        fig, ax = plt.subplots(figsize=(3, 3))
+        # Creat a new figure if the ax is not provided
+        if ax:
+            ax_plot = ax
+        else:
+            fig, ax_plot = plt.subplots(figsize=(3, 3))
 
         # check if the group name is in the groups and not containing the keywords in the ignore_kws
         groups_name = [
@@ -748,45 +1150,46 @@ class XASAnalysis:
 
         for i, group_name in enumerate(groups_name):
             group = self.groups[group_name]
-            ax.plot(group.k, group.chi * group.k**kweight, label=group_name)
+            ax_plot.plot(group.k, group.chi * group.k**kweight, label=group_name)
 
         if ref and hasattr(self, "reference"):
             if not hasattr(self.reference, "chi"):
                 pre_edge(self.reference, **self.pre_edge_kws)
                 autobk(self.reference, **self.autobk_kws)
 
-            ax.plot(
+            ax_plot.plot(
                 self.reference.k,
                 self.reference.chi * self.reference.k**kweight,
                 label=self.reference.label,
             )
 
-        ax.set_xlabel("$k$ ($\mathrm{\AA}^-1$)")
+        ax_plot.set_xlabel("$k$ ($\mathrm{\AA}^-1$)")
         if kweight == 0:
-            ax.set_ylabel("$\chi(k)$")
+            ax_plot.set_ylabel("$\chi(k)$")
         elif kweight == 1:
-            ax.set_ylabel("$k\chi(k)$")
+            ax_plot.set_ylabel("$k\chi(k)$")
         elif kweight > 1:
-            ax.set_ylabel("$k^{}\chi(k)$".format(int(kweight)))
+            ax_plot.set_ylabel("$k^{}\chi(k)$".format(int(kweight)))
 
         if isinstance(plot_range, list):
-            ax.set_xlim(plot_range[0], plot_range[1])
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
         elif isinstance(plot_range, tuple):
-            ax.set_xlim(plot_range[0], plot_range[1])
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
         elif plot_range.lower() == "full":
             pass
 
         if plot_legend:
             if legend_kws:
-                ax.legend(**legend_kws)
+                ax_plot.legend(**legend_kws)
             else:
-                ax.legend()
+                ax_plot.legend()
 
-        if save_path:
+        # if ax is not None it will not be saved
+        if ax is None and save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             fig.savefig(save_path, dpi=300)
 
-        return ax
+        return ax_plot
 
     def plot_r(
         self,
@@ -797,11 +1200,16 @@ class XASAnalysis:
         plot_legend: bool = True,
         legend_kws: dict | None = None,
         save_path: str | None = None,
+        ax: Axes | None = None,
     ) -> Axes:
         if groups_name is None:
             groups_name = list(self.groups.keys())
 
-        fig, ax = plt.subplots(figsize=(3, 3))
+        # Creat a new figure if the ax is not provided
+        if ax:
+            ax_plot = ax
+        else:
+            fig, ax_plot = plt.subplots(figsize=(3, 3))
 
         # check if the group name is in the groups and not containing the keywords in the ignore_kws
         groups_name = [
@@ -818,7 +1226,7 @@ class XASAnalysis:
 
         for i, group_name in enumerate(groups_name):
             group = self.groups[group_name]
-            ax.plot(group.r, group.chir_mag, label=group_name)
+            ax_plot.plot(group.r, group.chir_mag, label=group_name)
 
         if ref and hasattr(self, "reference"):
             if not hasattr(self.reference, "chir"):
@@ -826,14 +1234,14 @@ class XASAnalysis:
                 autobk(self.reference, **self.autobk_kws)
                 xftf(self.reference, **self.xftf_kws)
 
-            ax.plot(
+            ax_plot.plot(
                 self.reference.r,
                 self.reference.chir_mag,
                 label=self.reference.label,
             )
-        ax.set_xlabel("$R$ ($\mathrm{\AA}$)")
+        ax_plot.set_xlabel("$R$ ($\mathrm{\AA}$)")
         # TODO: Add the correct ylabel
-        ax.set_ylabel("$|\chi(R)|$ ($\mathrm{\AA}^{-3}$)")
+        ax_plot.set_ylabel("$|\chi(R)|$ ($\mathrm{\AA}^{-3}$)")
 
         # ax.set_xlabel("$k$ ($\mathrm{\AA}^-1$)")
         # if kweight == 0:
@@ -844,23 +1252,24 @@ class XASAnalysis:
         #     ax.set_ylabel("$k^{}\chi(k)$".format(int(kweight)))
 
         if isinstance(plot_range, list):
-            ax.set_xlim(plot_range[0], plot_range[1])
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
         elif isinstance(plot_range, tuple):
-            ax.set_xlim(plot_range[0], plot_range[1])
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
         elif plot_range.lower() == "full":
             pass
 
         if plot_legend:
             if legend_kws:
-                ax.legend(**legend_kws)
+                ax_plot.legend(**legend_kws)
             else:
-                ax.legend()
+                ax_plot.legend()
 
-        if save_path:
+        # if ax is not None it will not be saved
+        if ax is None and save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             fig.savefig(save_path, dpi=300)
 
-        return ax
+        return ax_plot
 
     def __dir__(self):
         return list(self.groups.keys())
