@@ -1163,13 +1163,13 @@ class XASAnalysis:
                 label=self.reference.label,
             )
 
-        ax_plot.set_xlabel("$k$ ($\mathrm{\AA}^-1$)")
+        ax_plot.set_xlabel(r"$k$ ($\mathrm{\AA}^-1$)")
         if kweight == 0:
-            ax_plot.set_ylabel("$\chi(k)$")
+            ax_plot.set_ylabel(r"$\chi(k)$")
         elif kweight == 1:
-            ax_plot.set_ylabel("$k\chi(k)$")
+            ax_plot.set_ylabel(r"$k\chi(k)$")
         elif kweight > 1:
-            ax_plot.set_ylabel("$k^{}\chi(k)$".format(int(kweight)))
+            ax_plot.set_ylabel(r"$k^{}\chi(k)$".format(int(kweight)))
 
         if isinstance(plot_range, list):
             ax_plot.set_xlim(plot_range[0], plot_range[1])
@@ -1239,10 +1239,10 @@ class XASAnalysis:
                 self.reference.chir_mag,
                 label=self.reference.label,
             )
-        ax_plot.set_xlabel("$R$ ($\mathrm{\AA}$)")
+        ax_plot.set_xlabel(r"$R$ ($\mathrm{\AA}$)")
 
         ax_plot.set_ylabel(
-            "$|\chi(R)|$ ($\mathrm{\AA}^{" + str(int(-kweight - 1)) + "}$)"
+            r"$|\chi(R)|$ ($\mathrm{\AA}^{" + str(int(-kweight - 1)) + "}$)"
         )
 
         if isinstance(plot_range, list):
