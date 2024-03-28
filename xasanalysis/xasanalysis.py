@@ -42,6 +42,10 @@ def read_xmu(
 
     Returns:
         group(Group): larch Group object
+
+    Examples:
+        >>> from xasanalysis import read_xmu
+        >>> group = read_xmu("example.xmu", "example")
     """
 
     with open(file_path) as f:
@@ -83,6 +87,15 @@ def read_QAS_transmission(
 
     Returns:
         Group | list[Group]: larch Group object or a list of larch Group objects(if use_glob = True)
+
+    Examples:
+        Example1:
+        >>> from xasanalysis import read_QAS_transmission
+        >>> group = read_QAS_transmission("example.dat", "example")
+
+        Example2:
+        >>> from xasanalysis import read_QAS_transmission
+        >>> groups = read_QAS_transmission("example*.dat", "example", use_glob=True)
     """
 
     if use_glob:
@@ -138,6 +151,15 @@ def read_QAS_fluorescence(
 
     Returns:
         Group | list[Group]: larch Group object or a list of larch Group objects(if use_glob=True)
+
+    Examples:
+        Example1:
+        >>> from xasanalysis import read_QAS_fluorescence
+        >>> group = read_QAS_fluorescence("example.dat", "example")
+
+        Example2:
+        >>> from xasanalysis import read_QAS_fluorescence
+        >>> groups = read_QAS_fluorescence("example*.dat", "example", use_glob=True)
     """
 
     if use_glob:
@@ -189,6 +211,15 @@ def read_QAS_ref(
 
     Returns:
         Group | list[Group]: larch Group object or a list of larch Group objects(if use_glob=True)
+
+    Examples:
+        Example1:
+        >>> from xasanalysis import read_QAS_ref
+        >>> group = read_QAS_ref("example.dat", "example")
+
+        Example2:
+        >>> from xasanalysis import read_QAS_ref
+        >>> groups = read_QAS_ref("example*.dat", "example", use_glob=True)
     """
     if use_glob:
         files = glob(file_path)
@@ -238,6 +269,15 @@ def read_QAS_SDD(
 
     Returns:
         Group | list[Group]: larch Group object or a list of larch Group objects(if use_glob=True)
+
+    Examples:
+        Example1:
+        >>> from xasanalysis import read_QAS_SDD
+        >>> group = read_QAS_SDD("example.dat", "example", roi = 1, channels = [1, 2, 3])
+
+        Example2:
+        >>> from xasanalysis import read_QAS_SDD
+        >>> groups = read_QAS_SDD("example*.dat", "example", roi = 1, channels = [1, 2, 3], use_glob=True)
     """
 
     if use_glob:
@@ -361,6 +401,27 @@ def calc_shift(
     Returns:
         shift(float): shift of the spectrum
         loss(float): loss of the spectrum
+
+    Examples:
+        >>> from xasanalysis import calc_shift
+        >>> group = read_xmu("example.xmu", "example")
+        >>> group2 = deepcopy(group)
+        >>> group2.energy = group2.energy + 10.0
+        >>> group2.mu = group2.mu*0.5
+        >>> e0 = find_e0(group)
+        >>> energy_grid = np.linspace(e0 - 20, e0 + 80, 200)
+        >>> fit_range = [e0 - 20, e0 + 80]
+        >>> pre_edge_kws = {
+                "e0": None,
+                "step": None,
+                "nnorm": 3,
+                "nvict": 0,
+                "pre1": -150,
+                "pre2": -45,
+                "norm1": 70,
+                "norm2": None,
+            }
+        >>> shift, loss = calc_shift(energy_grid, group2, group, pre_edge_kws, fit_range, max_shift = 20.0)
     """
 
     pre_edge(reference, **pre_edge_kws)
@@ -435,6 +496,37 @@ class XASAnalysis:
         xftf_kws(dict): keywords for the xftf function. Default is None, which allows a automatic detection.
         reference(Group): reference spectrum. Default is None.
         groups_ref(dict): dictionary of the references in each group. Default is None.
+
+    Examples:
+        >>> from xasanalysis import XASAnalysis
+        >>> xa = XASAnalysis()
+        >>> e0 = 8345
+        >>> pre_edge_kws: dict = {
+                "e0": None,
+                "step": None,
+                "nnorm": 3,
+                "nvict": 0,
+                "pre1": -150,
+                "pre2": -45,
+                "norm1": 70,
+                "norm2": None,
+            }
+        >>> autobk_kws: dict = {"rbkg": 1.0, "kmax": None, "kweight": 2}
+        >>> xftf_kws: dict = {"kmin": 2, "kmax": 8, "dk": 2, "window": "hanning"}
+        >>> (xa.set_pre_edge_kws(pre_edge_kws)
+                .set_autobk_kws(autobk_kws)
+                .set_xftf_kws(xftf_kws)
+                .set_reference_from_db("Ni K", label="Ni foil"))
+        >>> group1 = read_xmu("example1.xmu", "example1")
+        >>> group1_ref = read_xmu("example1_ref.xmu", "example1_ref")
+        >>> xa.add_group(group1, "group1", align_ref=group1_ref)
+        >>> xa.plot_exkr(
+                ref=True,
+                plot_erange="full",
+                plot_krange=[0, 15],
+                plot_rrange=[0, 8],
+                save_path="./out/Ni_exkr.png",
+            )
     """
 
     groups: dict[str, Group]
@@ -490,6 +582,14 @@ class XASAnalysis:
 
         Returns:
             Self: self. This method can be chained.
+
+        Examples:
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> xa.set_reference_from_db("Ni K", label="Ni foil")
+            >>> group1 = read_xmu("example1.xmu", "example1")
+            >>> group1_ref = read_xmu("example1_ref.xmu", "example1_ref")
+            >>> xa.add_group(group1, "group1", align_ref=group1_ref)
         """
 
         group = deepcopy(group)
@@ -527,7 +627,7 @@ class XASAnalysis:
             align_ref(Group | list[Group]): reference group to align the group. Default is None.
 
         Returns:
-        Self: self. This method can be chained.
+            Self: self. This method can be chained.
         """
         if isinstance(align_ref, Group):
             align_ref = deepcopy(align_ref)
@@ -589,10 +689,17 @@ class XASAnalysis:
         The reference spectrum will be used to align the spectra to the reference spectrum.
 
         Args:
-        ref_name(str): name of the reference spectrum in the xasref module
-        element(str): element of the reference spectrum. This is only used for efficient loading of the dictionary and it is not nessesary.
-        label(str): label of the reference spectrum. Default is None, which will use the ref_name.
+            ref_name(str): name of the reference spectrum in the xasref module
+            element(str): element of the reference spectrum. This is only used for efficient loading of the dictionary and it is not nessesary.
+            label(str): label of the reference spectrum. Default is None, which will use the ref_name.
 
+        Returns:
+            Self: self. This
+
+        Examples:
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> xa.set_reference_from_db("Ni K", label="Ni foil")
         """
         ref_dict = get_ref_dict(element)
 
@@ -632,6 +739,13 @@ class XASAnalysis:
 
         Returns:
             shift(float): shift of the spectrum. The calibrated energy is energy + shift.
+
+        Examples:
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> xa.set_reference_from_db("Ni K", label="Ni foil")
+            >>> group1_ref = read_xmu("example1_ref.xmu", "example1_ref")
+            >>> shift = xa.calc_shift(group1_ref, fit_range = [e0 - 20, e0 + 80], max_shift = 20.0)
         """
         if not hasattr(self, "reference"):
             raise Exception("Please set the reference spectrum")
@@ -981,9 +1095,26 @@ class XASAnalysis:
             legend_kws(dict): legend keywords. Default is None.
             save_path(str): save path of the figure. Default is None.
             ax(Axes): axes of the plot. Default is None.
+            fig(Figure): figure of the plot. Default is None. This will only matter if the ax is provided.
 
         Returns:
             Axes: axes of the plot
+
+        Examples:
+            Following example is a simple example with missing values of the parameters.
+
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> (xa.set_pre_edge_kws(pre_edge_kws)
+                    .set_autobk_kws(autobk_kws)
+                    .set_xftf_kws(xftf_kws)
+                    .set_reference_from_db("Ni K", label="Ni foil"))
+            >>> xa.add_group(group1, "group1")
+            >>> xa.plot_flat(
+                    ref=True,
+                    plot_range="xanes",
+                    save_path="./out/Ni_xanes.png",
+                    )
         """
 
         if groups_name is None:
@@ -1049,11 +1180,27 @@ class XASAnalysis:
 
         return ax_plot
 
+    # xa.plot_exkr(
+    #     ref=True,
+    #     plot_krange=[0, 15],
+    #     plot_rrange=[0, 8],
+    #     save_path="./out/AP01-04_Ni_ekr.png",
+    #     plot_legend="e",
+    # )
+    #
+    # xa.plot_xr(
+    #     ref=True,
+    #     plot_rrange=[0, 8],
+    #     save_path="./out/AP01-04_Ni_xr.png",
+    #     plot_legend="x",
+    # )
+    #
+
     def plot_flat_refs(
         self,
         groups_name: list[str] | None = None,
         ignore_kws: list[str] | None = None,
-        plot_range: str | tuple[float, float] | list[float] | None = "full",
+        plot_range: str | tuple[float, float] | list[float] | None = "xanes",
         ref: bool = True,
         plot_legend: bool = True,
         legend_kws: dict | None = None,
@@ -1061,6 +1208,42 @@ class XASAnalysis:
         ax: Axes | None = None,
         fig: Figure | None = None,
     ) -> Axes:
+        """Plot the flattened reference spectra
+
+        This method is used to check the alignment of the reference spectra.
+        It will plot the flattened reference spectra of the groups.
+        The plotting range is set to "xanes" by default to plot the xanes region of the spectra.
+
+        Args:
+            groups_name(list): list of the group names. Default is None, which will plot all the groups.
+            ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
+            plot_range(str | tuple | list): plot range of the spectra. Default is "xanes".
+            ref(bool): plot the reference spectrum. Default is True.
+            plot_legend(bool): plot the legend. Default is True.
+            legend_kws(dict): legend keywords. Default is None.
+            save_path(str): save path of the figure. Default is None.
+            ax(Axes): axes of the plot. Default is None.
+            fig(Figure): figure of the plot. Default is None. This will only matter if the ax is provided.
+
+        Returns:
+            Axes: matplotlib.axes.Axes of the plot
+
+        Examples:
+            Following example is a simple example with missing values of the parameters.
+
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> (xa.set_pre_edge_kws(pre_edge_kws)
+                    .set_autobk_kws(autobk_kws)
+                    .set_xftf_kws(xftf_kws)
+                    .set_reference_from_db("Ni K", label="Ni foil"))
+            >>> xa.add_group(group1, "group1")
+            >>> xa.plot_flat_refs(
+                plot_range="xanes",
+                save_path="./out/Ni_xanes_ref.png",
+                )
+        """
+
         if groups_name is None:
             groups_name = list(self.groups_ref.keys())
 
@@ -1135,6 +1318,46 @@ class XASAnalysis:
         ax: Axes | None = None,
         fig: Figure | None = None,
     ) -> Axes:
+        """Plot the chi(k) spectra
+
+        This method will plot the chi(k) spectra of the groups.
+        The plotting k-weight is set to the k-weight define by the xftf_kws.
+        This is to prevent the inconsistency of the plotting and the fast Fourier transform.
+
+        Args:
+            groups_name(list): list of the group names. Default is None, which will plot all the groups.
+            ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
+            plot_range(str | tuple | list): plot range of the spectra. Default is "full".
+            ref(bool): plot the reference spectrum. Default is False.
+            plot_legend(bool): plot the legend. Default is True.
+            legend_kws(dict): legend keywords. Default is None.
+            save_path(str): save path of the figure. Default is None.
+            ax(Axes): axes of the plot. Default is None.
+            fig(Figure): figure of the plot. Default is None. This will only matter if the ax is provided.
+
+        Returns:
+            Axes: matplotlib.axes.Axes of the plot
+
+        Examples:
+            Following example is a simple example with missing values of the parameters.
+
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> (xa.set_pre_edge_kws(pre_edge_kws)
+                    .set_autobk_kws(autobk_kws)
+                    .set_xftf_kws(xftf_kws)
+                    .set_reference_from_db("Ni K", label="Ni foil"))
+            >>> xa.add_group(group1, "group1")
+            >>> xa.plot_k(
+                    ref=True,
+                    plot_range=[0, 15],
+                    save_path="./out/Ni_k.png",
+                    legend_kws={
+                        "bbox_to_anchor": (1.05, 1),
+                        "loc": "upper left",
+                    },
+                )
+        """
         if groups_name is None:
             groups_name = list(self.groups.keys())
 
@@ -1215,6 +1438,46 @@ class XASAnalysis:
         ax: Axes | None = None,
         fig: Figure | None = None,
     ) -> Axes:
+        """Plot the chi(R) spectra
+
+        This method will plot the chi(R) spectra of the groups.
+        The units will be set based on the k-weight of the Fourier transform.
+
+        Args:
+            groups_name(list): list of the group names. Default is None, which will plot all the groups.
+            ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
+            plot_range(str | tuple | list): plot range of the spectra. Default is "full".
+            ref(bool): plot the reference spectrum. Default is False.
+            plot_legend(bool): plot the legend. Default is True.
+            legend_kws(dict): legend keywords. Default is None.
+            save_path(str): save path of the figure. Default is None.
+            ax(Axes): axes of the plot. Default is None.
+            fig(Figure): figure of the plot. Default is None. This will only matter if the ax is provided.
+
+        Returns:
+            Axes: matplotlib.axes.Axes of the plot
+
+        Examples:
+            Following example is a simple example with missing values of the parameters.
+
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> (xa.set_pre_edge_kws(pre_edge_kws)
+                .set_autobk_kws(autobk_kws)
+                .set_xftf_kws(xftf_kws)
+                .set_reference_from_db("Ni K", label="Ni foil"))
+            >>> xa.add_group(group1, "group1")
+            >>> xa.plot_r(
+                    ref=True,
+                    plot_range=[0, 8],
+                    save_path="./out/Ni_r.png",
+                    legend_kws={
+                        "bbox_to_anchor": (1.05, 1),
+                        "loc": "upper left",
+                    },
+                )
+        """
+
         if groups_name is None:
             groups_name = list(self.groups.keys())
 
@@ -1296,7 +1559,64 @@ class XASAnalysis:
         fig: Figure | None = None,
         plot_figures: str | list[str] | None = None,
     ) -> Axes | Sequence[Axes]:
+        """general method for plotting multiple figures.
 
+        This method is the general method for plotting multiple figures.
+        Please use following functions for the specific plots:
+
+        - `plot_flat`: plot the flattened spectra
+        - `plot_flat_refs`: plot the flattened reference spectra
+        - `plot_k`: plot the chi(k) spectra
+        - `plot_r`: plot the chi(R) spectra
+        - `plot_ekr`: plot the energy, k, and R spectra
+        - `plot_ek`: plot the energy and k spectra
+        - `plot_er`: plot the energy and R spectra
+        - `plot_kr`: plot the k and R spectra
+        - `plot_exkr`: plot the energy, k, and R spectra
+        - `plot_xkr`: plot the xanes, k, and R spectra
+        - `plot_xk`: plot the xanes and k spectra
+        - `plot_xr`: plot the xanes and R spectra
+
+        This method is a recursive method depending on the instance of the plot_figures.
+        If the plot_figures is a list, it will call the plot_multi for each of the figures.
+        If the plot_figures is a string, it will call the specific plot method for the figure.
+
+        Args:
+            groups_name(list): list of the group names. Default is None, which will plot all the groups.
+            ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
+            plot_erange(str | tuple | list): plot range of the energy spectra. Default is "full".
+            plot_krange(str | tuple | list): plot range of the k spectra. Default is "full".
+            plot_rrange(str | tuple | list): plot range of the R spectra. Default is "full".
+            ref(bool): plot the reference spectrum. Default is False.
+            plot_legend(bool | list | str): plot the legend. Default is True. The options are True, False, "all", "e", "x", "k", "r", and "left". The "left" will plot the legend on the left side of the plot.
+            legend_kws(dict): legend keywords. Default is None.
+            save_path(str): save path of the figure. Default is None.
+            ax(Axes | Sequence[Axes]): axes of the plot. Default is None.
+            fig(Figure): figure of the plot. Default is None. This will only matter if the ax is provided.
+            plot_figures(str | list[str] | None): plot figures. Default is None, which will plot all the figures. The options are "e", "x", "k", and "r". It can also be passed as a list. If it is a `None` it will plot "e", "k", and "r" the figures.
+
+        Returns:
+            Axes | Sequence[Axes]: matplotlib.axes.Axes of the plot or a ndarray of the matplotlib.axes.Axes of the plot
+
+        Examples:
+            Following example is a simple example with missing values of the parameters.
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> (xa.set_pre_edge_kws(pre_edge_kws)
+                    .set_autobk_kws(autobk_kws)
+                    .set_xftf_kws(xftf_kws)
+                    .set_reference_from_db("Ni K", label="Ni foil"))
+            >>> xa.add_group(group1, "group1")
+            >>> xa.plot_multi(
+                    ref=True,
+                    plot_erange="full",
+                    plot_krange=[0, 15],
+                    plot_rrange=[0, 8],
+                    save_path="./out/Ni_ekr.png",
+                    plot_legend="e",
+                    plot_figures=["e", "x", "k", "r"],
+                )
+        """
         if isinstance(plot_figures, list):
             # Convert the plot_figures to lower case for the comparison
             plot_figures = [plot_figure.lower() for plot_figure in plot_figures]
@@ -1495,6 +1815,45 @@ class XASAnalysis:
         ax: Sequence[Axes] | None = None,
         fig: Figure | None = None,
     ) -> Sequence[Axes]:
+        """Plot the energy, k, and R spectra
+
+        This method will plot the energy, k, and R spectra of the groups.
+
+        Args:
+            groups_name(list): list of the group names. Default is None, which will plot all the groups.
+            ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
+            plot_erange(str | tuple | list): plot range of the energy spectra. Default is "full".
+            plot_krange(str | tuple | list): plot range of the k spectra. Default is "full".
+            plot_rrange(str | tuple | list): plot range of the R spectra. Default is "full".
+            ref(bool): plot the reference spectrum. Default is False.
+            plot_legend(bool | list | str): plot the legend. Default is True. The options are True, False, "all", "e", "x", "k", "r", and "left". The "left" will plot the legend on the left side of the plot.
+            legend_kws(dict): legend keywords. Default is None.
+            save_path(str): save path of the figure. Default is None.
+            ax(Sequence[Axes]): axes of the plot. Default is None.
+            fig(Figure): figure of the plot. Default is None. This will only matter if the ax is provided.
+
+        Returns:
+            Sequence[Axes]: a ndarray of the matplotlib.axes.Axes of the plot
+
+        Examples:
+            Following example is a simple example with missing values of the parameters.
+
+        >>> from xasanalysis import XASAnalysis
+        >>> xa = XASAnalysis()
+        >>> (xa.set_pre_edge_kws(pre_edge_kws)
+        .set_autobk_kws(autobk_kws)
+        .set_xftf_kws(xftf_kws)
+        .set_reference_from_db("Ni K", label="Ni foil"))
+        >>> xa.add_group(group1, "group1")
+        >>> xa.plot_ekr(
+                ref=True,
+                plot_erange="full",
+                plot_krange=[0, 15],
+                plot_rrange=[0, 8],
+                plot_legend="e",
+                save_path="./out/Ni_ekr.png",
+            )
+        """
 
         plot_figures = ["e", "k", "r"]
 
@@ -1528,7 +1887,43 @@ class XASAnalysis:
         ax: Sequence[Axes] | None = None,
         fig: Figure | None = None,
     ) -> Sequence[Axes]:
+        """Plot the energy and k spectra
 
+        This method will plot the energy and k spectra of the groups.
+
+        Args:
+            groups_name(list): list of the group names. Default is None, which will plot all the groups.
+            ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
+            plot_erange(str | tuple | list): plot range of the energy spectra. Default is "full".
+            plot_krange(str | tuple | list): plot range of the k spectra. Default is "full".
+            ref(bool): plot the reference spectrum. Default is False.
+            plot_legend(bool | list | str): plot the legend. Default is True. The options are True, False, "all", "e", "x", "k", "r", and "left". The "left" will plot the legend on the left side of the plot.
+            legend_kws(dict): legend keywords. Default is None.
+            save_path(str): save path of the figure. Default is None.
+            ax(Sequence[Axes]): axes of the plot. Default is None.
+            fig(Figure): figure of the plot. Default is None. This will only matter if the ax is provided.
+
+        Returns:
+            Sequence[Axes]: a ndarray of the matplotlib.axes.Axes of the plot
+
+        Examples:
+            Following example is a simple example with missing values of the parameters.
+
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> (xa.set_pre_edge_kws(pre_edge_kws)
+                .set_autobk_kws(autobk_kws)
+                .set_xftf_kws(xftf_kws)
+                .set_reference_from_db("Ni K", label="Ni foil"))
+            >>> xa.add_group(group1, "group1")
+            >>> xa.plot_ek(
+                    ref=True,
+                    plot_erange="full",
+                    plot_krange=[0, 15],
+                    plot_legend="e",
+                    save_path="./out/Ni_ek.png",
+                )
+        """
         plot_figures = ["e", "k"]
 
         # Although there is a error in the static type checking, it is ensured that the return is Sequence[Axes].
@@ -1561,6 +1956,42 @@ class XASAnalysis:
         ax: Sequence[Axes] | None = None,
         fig: Figure | None = None,
     ) -> Sequence[Axes]:
+        """Plot the energy and R spectra
+
+        This method will plot the energy and R spectra of the groups.
+
+        Args:
+            groups_name(list): list of the group names. Default is None, which will plot all the groups.
+            ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
+            plot_erange(str | tuple | list): plot range of the energy spectra. Default is "full".
+            plot_rrange(str | tuple | list): plot range of the R spectra. Default is "full".
+            ref(bool): plot the reference spectrum. Default is False.
+            plot_legend(bool | list | str): plot the legend. Default is True. The options are True, False, "all", "e", "x", "k", "r", and "left". The "left" will plot the legend on the left side of the plot.
+            legend_kws(dict): legend keywords. Default is None.
+            save_path(str): save path of the figure. Default is None.
+            ax(Sequence[Axes]): axes of the plot. Default is None.
+            fig(Figure): figure of the plot. Default is None. This will only matter if the ax is provided.
+
+        Returns:
+            Sequence[Axes]: a ndarray of the matplotlib.axes.Axes of the plot
+
+        Examples:
+            Following example is a simple example with missing values of the parameters.
+
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> (xa.set_pre_edge_kws(pre_edge_kws)
+                .set_autobk_kws(autobk_kws)
+                .set_xftf_kws(xftf_kws)
+                .set_reference_from_db("Ni K", label="Ni foil"))
+            >>> xa.add_group(group1, "group1")
+            >>> xa.plot_er(
+                    ref=True,
+                    plot_erange="full",
+                    plot_rrange=[0, 8],
+                    save_path="./out/Ni_er.png",
+                )
+        """
 
         plot_figures = ["e", "r"]
 
@@ -1594,6 +2025,42 @@ class XASAnalysis:
         ax: Sequence[Axes] | None = None,
         fig: Figure | None = None,
     ) -> Sequence[Axes]:
+        """Plot the k and R spectra
+
+        This method will plot the k and R spectra of the groups.
+
+        Args:
+            groups_name(list): list of the group names. Default is None, which will plot all the groups.
+            ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
+            plot_krange(str | tuple | list): plot range of the k spectra. Default is "full".
+            plot_rrange(str | tuple | list): plot range of the R spectra. Default is "full".
+            ref(bool): plot the reference spectrum. Default is False.
+            plot_legend(bool | list | str): plot the legend. Default is True. The options are True, False, "all", "e", "x", "k", "r", and "left". The "left" will plot the legend on the left side of the plot.
+            legend_kws(dict): legend keywords. Default is None.
+            save_path(str): save path of the figure. Default is None.
+            ax(Sequence[Axes]): axes of the plot. Default is None.
+            fig(Figure): figure of the plot. Default is None. This will only matter if the ax is provided.
+
+        Returns:
+            Sequence[Axes]: a ndarray of the matplotlib.axes.Axes of the plot
+
+        Examples:
+            Following example is a simple example with missing values of the parameters.
+
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> (xa.set_pre_edge_kws(pre_edge_kws)
+                .set_autobk_kws(autobk_kws)
+                .set_xftf_kws(xftf_kws)
+                .set_reference_from_db("Ni K", label="Ni foil"))
+            >>> xa.add_group(group1, "group1")
+            >>> xa.plot_kr(
+                    ref=True,
+                    plot_krange=[0, 15],
+                    plot_rrange=[0, 8],
+                    save_path="./out/Ni_kr.png",
+                )
+        """
 
         plot_figures = ["k", "r"]
 
@@ -1627,6 +2094,44 @@ class XASAnalysis:
         ax: Sequence[Axes] | None = None,
         fig: Figure | None = None,
     ) -> Sequence[Axes]:
+        """Plot the energy, xanes, k, and R spectra
+
+        This method will plot the energy, xanes, k, and R spectra of the groups.
+
+        Args:
+            groups_name(list): list of the group names. Default is None, which will plot all the groups.
+            ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
+            plot_erange(str | tuple | list): plot range of the energy spectra. Default is "full".
+            plot_krange(str | tuple | list): plot range of the k spectra. Default is "full".
+            plot_rrange(str | tuple | list): plot range of the R spectra. Default is "full".
+            ref(bool): plot the reference spectrum. Default is False.
+            plot_legend(bool | list | str): plot the legend. Default is True. The options are True, False, "all", "e", "x", "k", "r", and "left". The "left" will plot the legend on the left side of the plot.
+            legend_kws(dict): legend keywords. Default is None.
+            save_path(str): save path of the figure. Default is None.
+            ax(Sequence[Axes]): axes of the plot. Default is None.
+            fig(Figure): figure of the plot. Default is None. This will only matter if the ax is provided.
+
+        Returns:
+            Sequence[Axes]: a ndarray of the matplotlib.axes.Axes of the plot
+
+        Examples:
+            Following example is a simple example with missing values of the parameters.
+
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> (xa.set_pre_edge_kws(pre_edge_kws)
+                .set_autobk_kws(autobk_kws)
+                .set_xftf_kws(xftf_kws)
+                .set_reference_from_db("Ni K", label="Ni foil"))
+            >>> xa.add_group(group1, "group1")
+            >>> xa.plot_exkr(
+                    ref=True,
+                    plot_erange="full",
+                    plot_krange=[0, 15],
+                    plot_rrange=[0, 8],
+                    save_path="./out/Ni_exkr.png",
+                )
+        """
 
         plot_figures = ["e", "x", "k", "r"]
 
@@ -1660,7 +2165,42 @@ class XASAnalysis:
         ax: Sequence[Axes] | None = None,
         fig: Figure | None = None,
     ) -> Sequence[Axes]:
+        """Plot the xanes, k, and R spectra
 
+        This method will plot the xanes, k, and R spectra of the groups.
+
+        Args:
+            groups_name(list): list of the group names. Default is None, which will plot all the groups.
+            ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
+            plot_krange(str | tuple | list): plot range of the k spectra. Default is "full".
+            plot_rrange(str | tuple | list): plot range of the R spectra. Default is "full".
+            ref(bool): plot the reference spectrum. Default is False.
+            plot_legend(bool | list | str): plot the legend. Default is True. The options are True, False, "all", "e", "x", "k", "r", and "left". The "left" will plot the legend on the left side of the plot.
+            legend_kws(dict): legend keywords. Default is None.
+            save_path(str): save path of the figure. Default is None.
+            ax(Sequence[Axes]): axes of the plot. Default is None.
+            fig(Figure): figure of the plot. Default is None. This will only matter if the ax is provided.
+
+        Returns:
+            Sequence[Axes]: a ndarray of the matplotlib.axes.Axes of the plot
+
+        Examples:
+            Following example is a simple example with missing values of the parameters.
+
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> (xa.set_pre_edge_kws(pre_edge_kws)
+                .set_autobk_kws(autobk_kws)
+                .set_xftf_kws(xftf_kws)
+                .set_reference_from_db("Ni K", label="Ni foil"))
+            >>> xa.add_group(group1, "group1")
+            >>> xa.plot_xkr(
+                    ref=True,
+                    plot_krange=[0, 15],
+                    plot_rrange=[0, 8],
+                    save_path="./out/Ni_xkr.png",
+                )
+        """
         plot_figures = ["x", "k", "r"]
 
         # Although there is a error in the static type checking, it is ensured that the return is Sequence[Axes].
@@ -1692,7 +2232,40 @@ class XASAnalysis:
         ax: Sequence[Axes] | None = None,
         fig: Figure | None = None,
     ) -> Sequence[Axes]:
+        """Plot the xanes and k spectra
 
+        This method will plot the xanes and k spectra of the groups.
+
+        Args:
+            groups_name(list): list of the group names. Default is None, which will plot all the groups.
+            ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
+            plot_krange(str | tuple | list): plot range of the k spectra. Default is "full".
+            ref(bool): plot the reference spectrum. Default is False.
+            plot_legend(bool | list | str): plot the legend. Default is True. The options are True, False, "all", "e", "x", "k", "r", and "left". The "left" will plot the legend on the left side of the plot.
+            legend_kws(dict): legend keywords. Default is None.
+            save_path(str): save path of the figure. Default is None.
+            ax(Sequence[Axes]): axes of the plot. Default is None.
+            fig(Figure): figure of the plot. Default is None. This will only matter if the ax is provided.
+
+        Returns:
+            Sequence[Axes]: a ndarray of the matplotlib.axes.Axes of the plot
+
+        Examples:
+            Following example is a simple example with missing values of the parameters.
+
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> (xa.set_pre_edge_kws(pre_edge_kws)
+                .set_autobk_kws(autobk_kws)
+                .set_xftf_kws(xftf_kws)
+                .set_reference_from_db("Ni K", label="Ni foil"))
+            >>> xa.add_group(group1, "group1")
+            >>> xa.plot_xk(
+                    ref=True,
+                    plot_krange=[0, 15],
+                    save_path="./out/Ni_xk.png",
+                )
+        """
         plot_figures = ["x", "k"]
 
         # Although there is a error in the static type checking, it is ensured that the return is Sequence[Axes].
@@ -1723,6 +2296,40 @@ class XASAnalysis:
         ax: Sequence[Axes] | None = None,
         fig: Figure | None = None,
     ) -> Sequence[Axes]:
+        """Plot the xanes and R spectra
+
+        This method will plot the xanes and R spectra of the groups.
+
+        Args:
+            groups_name(list): list of the group names. Default is None, which will plot all the groups.
+            ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
+            plot_rrange(str | tuple | list): plot range of the R spectra. Default is "full".
+            ref(bool): plot the reference spectrum. Default is False.
+            plot_legend(bool | list | str): plot the legend. Default is True. The options are True, False, "all", "e", "x", "k", "r", and "left". The "left" will plot the legend on the left side of the plot.
+            legend_kws(dict): legend keywords. Default is None.
+            save_path(str): save path of the figure. Default is None.
+            ax(Sequence[Axes]): axes of the plot. Default is None.
+            fig(Figure): figure of the plot. Default is None. This will only matter if the ax is provided.
+
+        Returns:
+            Sequence[Axes]: a ndarray of the matplotlib.axes.Axes of the plot
+
+        Examples:
+            Following example is a simple example with missing values of the parameters.
+
+            >>> from xasanalysis import XASAnalysis
+            >>> xa = XASAnalysis()
+            >>> (xa.set_pre_edge_kws(pre_edge_kws)
+                .set_autobk_kws(autobk_kws)
+                .set_xftf_kws(xftf_kws)
+                .set_reference_from_db("Ni K", label="Ni foil"))
+            >>> xa.add_group(group1, "group1")
+            >>> xa.plot_xr(
+                    ref=True,
+                    plot_rrange=[0, 8],
+                    save_path="./out/Ni_xr.png",
+                )
+        """
 
         plot_figures = ["x", "r"]
 
