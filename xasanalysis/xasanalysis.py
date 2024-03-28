@@ -14,6 +14,7 @@ from larch import Group
 from larch.io import merge_groups, read_ascii
 from larch.xafs import autobk, find_e0, pre_edge, xftf, xftr
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from xasref import get_ref_dict
 
 plt.style.use(["science", "nature", "bright"])
@@ -965,6 +966,7 @@ class XASAnalysis:
         legend_kws: dict | None = None,
         save_path: str | None = None,
         ax: Axes | None = None,
+        fig: Figure | None = None,
     ) -> Axes:
         """Plot the flattened spectra
 
@@ -1037,6 +1039,9 @@ class XASAnalysis:
             else:
                 ax_plot.legend()
 
+        if fig:
+            fig.tight_layout(pad=0.5)
+
         # if ax is not None it will not be saved
         if ax is None and save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -1054,6 +1059,7 @@ class XASAnalysis:
         legend_kws: dict | None = None,
         save_path: str | None = None,
         ax: Axes | None = None,
+        fig: Figure | None = None,
     ) -> Axes:
         if groups_name is None:
             groups_name = list(self.groups_ref.keys())
@@ -1107,6 +1113,8 @@ class XASAnalysis:
                 ax_plot.legend(**legend_kws)
             else:
                 ax_plot.legend()
+        if fig:
+            fig.tight_layout(pad=0.5)
 
         # if ax is not None it will not be saved
         if ax is None and save_path:
@@ -1125,6 +1133,7 @@ class XASAnalysis:
         legend_kws: dict | None = None,
         save_path: str | None = None,
         ax: Axes | None = None,
+        fig: Figure | None = None,
     ) -> Axes:
         if groups_name is None:
             groups_name = list(self.groups.keys())
@@ -1163,7 +1172,7 @@ class XASAnalysis:
                 label=self.reference.label,
             )
 
-        ax_plot.set_xlabel(r"$k$ ($\mathrm{\AA}^-1$)")
+        ax_plot.set_xlabel(r"$k$ ($\mathrm{\AA}^{-1}$)")
         if kweight == 0:
             ax_plot.set_ylabel(r"$\chi(k)$")
         elif kweight == 1:
@@ -1184,6 +1193,9 @@ class XASAnalysis:
             else:
                 ax_plot.legend()
 
+        if fig:
+            fig.tight_layout(pad=0.5)
+
         # if ax is not None it will not be saved
         if ax is None and save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -1201,6 +1213,7 @@ class XASAnalysis:
         legend_kws: dict | None = None,
         save_path: str | None = None,
         ax: Axes | None = None,
+        fig: Figure | None = None,
     ) -> Axes:
         if groups_name is None:
             groups_name = list(self.groups.keys())
@@ -1257,6 +1270,143 @@ class XASAnalysis:
                 ax_plot.legend(**legend_kws)
             else:
                 ax_plot.legend()
+
+        if fig:
+            fig.tight_layout(pad=0.5)
+
+        # if ax is not None it will not be saved
+        if ax is None and save_path:
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            fig.savefig(save_path, dpi=300)
+
+        return ax_plot
+
+    def plot_ekr(
+        self,
+        groups_name: list[str] | None = None,
+        ignore_kws: list[str] | None = None,
+        plot_erange: str | tuple[float, float] | list[float] | None = "full",
+        plot_krange: str | tuple[float, float] | list[float] | None = "full",
+        plot_rrange: str | tuple[float, float] | list[float] | None = "full",
+        ref: bool = False,
+        plot_legend: bool | list[int] | str = True,
+        legend_kws: dict | None = None,
+        save_path: str | None = None,
+        ax: Sequence[Axes] | None = None,
+        fig: Figure | None = None,
+    ) -> Sequence[Axes]:
+        nrows = 1
+        ncols = 3
+
+        if groups_name is None:
+            groups_name = list(self.groups.keys())
+
+        # Creat a new figure if the ax is not provided
+        if ax:
+            ax_plot = ax
+        else:
+            fig, ax_plot = plt.subplots(
+                nrows=nrows, ncols=ncols, figsize=(3 * ncols, 3)
+            )
+            ax_plot.flatten()
+
+        # check if the group name is in the groups and not containing the keywords in the ignore_kws
+        groups_name = [
+            group_name
+            for group_name in groups_name
+            if (group_name in self.groups)
+            and (ignore_kws is None or not any(kw in group_name for kw in ignore_kws))
+        ]
+
+        if not self.has_flat(groups_name):
+            self.pre_edge()
+
+        if not self.has_chi(groups_name):
+            self.autobk()
+
+        if not self.has_chir(groups_name):
+            self.xftf()
+
+        if ref and hasattr(self, "reference"):
+            if not hasattr(self.reference, "chir"):
+                pre_edge(self.reference, **self.pre_edge_kws)
+                autobk(self.reference, **self.autobk_kws)
+                xftf(self.reference, **self.xftf_kws)
+
+        self.plot_flat(
+            groups_name=groups_name,
+            ignore_kws=None,
+            plot_range=plot_erange,
+            ref=ref,
+            plot_legend=False,
+            legend_kws=None,
+            save_path=None,
+            ax=ax_plot[0],
+        )
+
+        self.plot_k(
+            groups_name=groups_name,
+            ignore_kws=None,
+            plot_range=plot_krange,
+            ref=ref,
+            plot_legend=False,
+            legend_kws=None,
+            save_path=None,
+            ax=ax_plot[1],
+        )
+
+        self.plot_r(
+            groups_name=groups_name,
+            ignore_kws=None,
+            plot_range=plot_rrange,
+            ref=ref,
+            plot_legend=False,
+            legend_kws=legend_kws,
+            save_path=None,
+            ax=ax_plot[2],
+        )
+
+        if isinstance(plot_legend, bool):
+            if plot_legend:
+                if legend_kws:
+                    ax_plot.legend(**legend_kws)
+                else:
+                    ax_plot.legend()
+        elif isinstance(plot_legend, list):
+            plot_legend_indexes = [i for i in list if i < len(ax_plot)]
+
+            for i in plot_legend_indexes:
+                if plot_legend[i]:
+                    if legend_kws:
+                        ax.legend(**legend_kws)
+                    else:
+                        ax.legend()
+        elif isinstance(plot_legend, str):
+            if plot_legend.lower() == "all":
+                for ax in ax_plot:
+                    if legend_kws:
+                        ax.legend(**legend_kws)
+                    else:
+                        ax.legend()
+
+            if plot_legend.lower() == "e":
+                if legend_kws:
+                    ax_plot[0].legend(**legend_kws)
+                else:
+                    ax_plot[0].legend()
+            if plot_legend.lower() == "k":
+                if legend_kws:
+                    ax_plot[1].legend(**legend_kws)
+                else:
+                    ax_plot[1].legend()
+            if plot_legend.lower() == "r":
+                if legend_kws:
+                    ax_plot[2].legend(**legend_kws)
+                else:
+                    ax_plot[2].legend()
+
+        if fig:
+            fig.tight_layout(pad=0.5)
 
         # if ax is not None it will not be saved
         if ax is None and save_path:

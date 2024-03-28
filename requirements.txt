@@ -5,5 +5,7 @@ matplotlib
 seaborn
 scienceplots
 
+spdist
+
 git+https://github.com/Ameyanagi/xasref
 

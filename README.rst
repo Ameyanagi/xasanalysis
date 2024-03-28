@@ -16,11 +16,31 @@ XASAnalysis
 
 
 
-Wrapper for making the XAS analysis easier
-
+Wrapper for making the XAS analysis easier.
 
 * Free software: MIT license
 * Documentation: https://xasanalysis.readthedocs.io.
+
+Requirements
+------------
+
+This package heavily relies on the  xraylarch_ pakcage.
+It should be fine to install it from pip, but if you are also setting up the GUI at the same time, please follow the installation instructions from the `xraylarch website`_.
+
+.. _xraylarch: https://xraypy.github.io/xraylarch/
+.. _xraylarch website: https://xraypy.github.io/xraylarch/installation.html
+
+
+Installation
+------------
+
+Detailed instructions for installation are available in the `installation documentation`_.
+
+.. _installation documentation: https://ameyanagi.github.io/DecomNano/installation.html
+
+.. code-block:: bash
+
+    pip install git+https:://github.com/Ameyanagi/xasanalysis
 
 
 Features
@@ -31,7 +51,3 @@ Features
 Credits
 -------
 
-This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
-
-.. _Cookiecutter: https://github.com/audreyr/cookiecutter
-.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
