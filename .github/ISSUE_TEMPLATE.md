@@ -1,6 +1,6 @@
-* XASAnalysis version:
-* Python version:
-* Operating System:
+-   XASAnalysis version:
+-   Python version:
+-   Operating System:
 
 ### Description
 
@@ -13,3 +13,11 @@ Tell us what happened, what went wrong, and what you expected to happen.
 Paste the command(s) you ran and the output.
 If there was a crash, please include the traceback here.
 ```
+
+Following are for the TODOs
+
+# TODO:
+
+Assignee:
+
+Detail(if it is unclear by the title):
