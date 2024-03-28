@@ -1281,6 +1281,206 @@ class XASAnalysis:
 
         return ax_plot
 
+    def plot_multi(
+        self,
+        groups_name: list[str] | None = None,
+        ignore_kws: list[str] | None = None,
+        plot_erange: str | tuple[float, float] | list[float] | None = "full",
+        plot_krange: str | tuple[float, float] | list[float] | None = "full",
+        plot_rrange: str | tuple[float, float] | list[float] | None = "full",
+        ref: bool = False,
+        plot_legend: bool | list[int] | str = True,
+        legend_kws: dict | None = None,
+        save_path: str | None = None,
+        ax: Axes | Sequence[Axes] | None = None,
+        fig: Figure | None = None,
+        plot_figures: str | list[str] | None = None,
+    ) -> Axes | Sequence[Axes]:
+
+        if isinstance(plot_figures, list):
+            # Convert the plot_figures to lower case for the comparison
+            plot_figures = [plot_figure.lower() for plot_figure in plot_figures]
+
+            # Define the number of rows and columns
+            nrows = 1
+            ncols = len(plot_figures)
+
+            if groups_name is None:
+                groups_name = list(self.groups.keys())
+
+            # Creat a new figure if the ax is not provided
+            if ax:
+                ax_plot = ax
+            else:
+                fig, ax_plot = plt.subplots(
+                    nrows=nrows, ncols=ncols, figsize=(3 * ncols, 3)
+                )
+                if ncols == 1:
+                    ax_plot = np.array([ax_plot])
+                ax_plot.flatten()
+
+            # check if the group name is in the groups and not containing the keywords in the ignore_kws
+            groups_name = [
+                group_name
+                for group_name in groups_name
+                if (group_name in self.groups)
+                and (
+                    ignore_kws is None or not any(kw in group_name for kw in ignore_kws)
+                )
+            ]
+
+            if not self.has_flat(groups_name):
+                self.pre_edge()
+
+            if not self.has_chi(groups_name):
+                self.autobk()
+
+            if not self.has_chir(groups_name):
+                self.xftf()
+
+            if ref and hasattr(self, "reference"):
+                if not hasattr(self.reference, "chir"):
+                    pre_edge(self.reference, **self.pre_edge_kws)
+                    autobk(self.reference, **self.autobk_kws)
+                    xftf(self.reference, **self.xftf_kws)
+
+            for ax_tmp, plot_figure in zip(ax_plot, plot_figures):
+                self.plot_multi(
+                    groups_name=groups_name,
+                    ignore_kws=ignore_kws,
+                    plot_erange=plot_erange,
+                    plot_krange=plot_krange,
+                    plot_rrange=plot_rrange,
+                    ref=ref,
+                    plot_legend=plot_legend,
+                    legend_kws=legend_kws,
+                    save_path=None,
+                    ax=ax_tmp,
+                    plot_figures=plot_figure,
+                )
+
+            if isinstance(plot_legend, bool):
+                if plot_legend:
+                    if legend_kws:
+                        ax_plot[0].legend(**legend_kws)
+                    else:
+                        ax_plot[0].legend()
+            elif isinstance(plot_legend, list):
+                plot_legend_indexes = [i for i in list if i < len(ax_plot)]
+
+                for i in plot_legend_indexes:
+                    if plot_legend[i]:
+                        if legend_kws:
+                            ax_plot[i].legend(**legend_kws)
+                        else:
+                            ax_plot[i].legend()
+            elif isinstance(plot_legend, str):
+                if plot_legend.lower() == "all":
+                    for ax in ax_plot:
+                        if legend_kws:
+                            ax.legend(**legend_kws)
+                        else:
+                            ax.legend()
+
+                if plot_legend.lower() in ["e", "x", "k", "r"]:
+                    legend_index = plot_figures.index(plot_legend.lower())
+                    if legend_kws:
+                        ax_plot[legend_index].legend(**legend_kws)
+                    else:
+                        ax_plot[legend_index].legend()
+
+                if plot_legend.lower() == "left":
+                    legend_kws = {
+                        "bbox_to_anchor": (1.05, 1),
+                        "loc": "upper left",
+                    }
+                    ax_plot[-1].legend(**legend_kws)
+
+            if fig:
+                fig.tight_layout(pad=0.5)
+
+            # if ax is not None it will not be saved
+            if ax is None and save_path:
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                fig.savefig(save_path, dpi=300)
+
+            return ax_plot
+
+        elif plot_figures is None:
+            plot_figures = ["e", "k", "r"]
+            return self.plot_multi(
+                groups_name=groups_name,
+                ignore_kws=ignore_kws,
+                plot_erange=plot_erange,
+                plot_krange=plot_krange,
+                plot_rrange=plot_rrange,
+                ref=ref,
+                plot_legend=plot_legend,
+                legend_kws=legend_kws,
+                save_path=save_path,
+                ax=ax,
+                plot_figures=plot_figures,
+            )
+
+        # The plot_figures is a string
+
+        if not isinstance(ax, Axes):
+            print(ax)
+            raise Exception(
+                "Please provide the ax for the plot, when plot_figures is a string"
+            )
+        if plot_figures not in ["e", "x", "k", "r"]:
+            raise Exception("Please provide a valid plot_figures, e, x, k, and r")
+
+        ax_plot = ax
+
+        if plot_figures == "e":
+            self.plot_flat(
+                groups_name=groups_name,
+                ignore_kws=None,
+                plot_range=plot_erange,
+                ref=ref,
+                plot_legend=False,
+                legend_kws=None,
+                save_path=None,
+                ax=ax_plot,
+            )
+        elif plot_figures == "x":
+            self.plot_flat(
+                groups_name=groups_name,
+                ignore_kws=None,
+                plot_range="xanes",
+                ref=ref,
+                plot_legend=False,
+                legend_kws=None,
+                save_path=None,
+                ax=ax_plot,
+            )
+        elif plot_figures == "k":
+            self.plot_k(
+                groups_name=groups_name,
+                ignore_kws=None,
+                plot_range=plot_krange,
+                ref=ref,
+                plot_legend=False,
+                legend_kws=None,
+                save_path=None,
+                ax=ax_plot,
+            )
+        elif plot_figures == "r":
+            self.plot_r(
+                groups_name=groups_name,
+                ignore_kws=None,
+                plot_range=plot_rrange,
+                ref=ref,
+                plot_legend=False,
+                legend_kws=legend_kws,
+                save_path=None,
+                ax=ax_plot,
+            )
+
+        return ax_plot
+
     def plot_ekr(
         self,
         groups_name: list[str] | None = None,
@@ -1295,125 +1495,252 @@ class XASAnalysis:
         ax: Sequence[Axes] | None = None,
         fig: Figure | None = None,
     ) -> Sequence[Axes]:
-        nrows = 1
-        ncols = 3
 
-        if groups_name is None:
-            groups_name = list(self.groups.keys())
+        plot_figures = ["e", "k", "r"]
 
-        # Creat a new figure if the ax is not provided
-        if ax:
-            ax_plot = ax
-        else:
-            fig, ax_plot = plt.subplots(
-                nrows=nrows, ncols=ncols, figsize=(3 * ncols, 3)
-            )
-            ax_plot.flatten()
-
-        # check if the group name is in the groups and not containing the keywords in the ignore_kws
-        groups_name = [
-            group_name
-            for group_name in groups_name
-            if (group_name in self.groups)
-            and (ignore_kws is None or not any(kw in group_name for kw in ignore_kws))
-        ]
-
-        if not self.has_flat(groups_name):
-            self.pre_edge()
-
-        if not self.has_chi(groups_name):
-            self.autobk()
-
-        if not self.has_chir(groups_name):
-            self.xftf()
-
-        if ref and hasattr(self, "reference"):
-            if not hasattr(self.reference, "chir"):
-                pre_edge(self.reference, **self.pre_edge_kws)
-                autobk(self.reference, **self.autobk_kws)
-                xftf(self.reference, **self.xftf_kws)
-
-        self.plot_flat(
+        # Although there is a error in the static type checking, it is ensured that the return is Sequence[Axes].
+        # TODO: fix to be consistent with the static type checking
+        return self.plot_multi(
             groups_name=groups_name,
-            ignore_kws=None,
-            plot_range=plot_erange,
+            ignore_kws=ignore_kws,
+            plot_erange=plot_erange,
+            plot_krange=plot_krange,
+            plot_rrange=plot_rrange,
             ref=ref,
-            plot_legend=False,
-            legend_kws=None,
-            save_path=None,
-            ax=ax_plot[0],
-        )
-
-        self.plot_k(
-            groups_name=groups_name,
-            ignore_kws=None,
-            plot_range=plot_krange,
-            ref=ref,
-            plot_legend=False,
-            legend_kws=None,
-            save_path=None,
-            ax=ax_plot[1],
-        )
-
-        self.plot_r(
-            groups_name=groups_name,
-            ignore_kws=None,
-            plot_range=plot_rrange,
-            ref=ref,
-            plot_legend=False,
+            plot_legend=plot_legend,
             legend_kws=legend_kws,
-            save_path=None,
-            ax=ax_plot[2],
+            save_path=save_path,
+            ax=ax,
+            fig=fig,
+            plot_figures=plot_figures,
         )
 
-        if isinstance(plot_legend, bool):
-            if plot_legend:
-                if legend_kws:
-                    ax_plot.legend(**legend_kws)
-                else:
-                    ax_plot.legend()
-        elif isinstance(plot_legend, list):
-            plot_legend_indexes = [i for i in list if i < len(ax_plot)]
+    def plot_ek(
+        self,
+        groups_name: list[str] | None = None,
+        ignore_kws: list[str] | None = None,
+        plot_erange: str | tuple[float, float] | list[float] | None = "full",
+        plot_krange: str | tuple[float, float] | list[float] | None = "full",
+        ref: bool = False,
+        plot_legend: bool | list[int] | str = True,
+        legend_kws: dict | None = None,
+        save_path: str | None = None,
+        ax: Sequence[Axes] | None = None,
+        fig: Figure | None = None,
+    ) -> Sequence[Axes]:
 
-            for i in plot_legend_indexes:
-                if plot_legend[i]:
-                    if legend_kws:
-                        ax.legend(**legend_kws)
-                    else:
-                        ax.legend()
-        elif isinstance(plot_legend, str):
-            if plot_legend.lower() == "all":
-                for ax in ax_plot:
-                    if legend_kws:
-                        ax.legend(**legend_kws)
-                    else:
-                        ax.legend()
+        plot_figures = ["e", "k"]
 
-            if plot_legend.lower() == "e":
-                if legend_kws:
-                    ax_plot[0].legend(**legend_kws)
-                else:
-                    ax_plot[0].legend()
-            if plot_legend.lower() == "k":
-                if legend_kws:
-                    ax_plot[1].legend(**legend_kws)
-                else:
-                    ax_plot[1].legend()
-            if plot_legend.lower() == "r":
-                if legend_kws:
-                    ax_plot[2].legend(**legend_kws)
-                else:
-                    ax_plot[2].legend()
+        # Although there is a error in the static type checking, it is ensured that the return is Sequence[Axes].
+        # TODO: fix to be consistent with the static type checking
+        return self.plot_multi(
+            groups_name=groups_name,
+            ignore_kws=ignore_kws,
+            plot_erange=plot_erange,
+            plot_krange=plot_krange,
+            plot_rrange=None,
+            ref=ref,
+            plot_legend=plot_legend,
+            legend_kws=legend_kws,
+            save_path=save_path,
+            ax=ax,
+            fig=fig,
+            plot_figures=plot_figures,
+        )
 
-        if fig:
-            fig.tight_layout(pad=0.5)
+    def plot_er(
+        self,
+        groups_name: list[str] | None = None,
+        ignore_kws: list[str] | None = None,
+        plot_erange: str | tuple[float, float] | list[float] | None = "full",
+        plot_rrange: str | tuple[float, float] | list[float] | None = "full",
+        ref: bool = False,
+        plot_legend: bool | list[int] | str = True,
+        legend_kws: dict | None = None,
+        save_path: str | None = None,
+        ax: Sequence[Axes] | None = None,
+        fig: Figure | None = None,
+    ) -> Sequence[Axes]:
 
-        # if ax is not None it will not be saved
-        if ax is None and save_path:
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            fig.savefig(save_path, dpi=300)
+        plot_figures = ["e", "r"]
 
-        return ax_plot
+        # Although there is a error in the static type checking, it is ensured that the return is Sequence[Axes].
+        # TODO: fix to be consistent with the static type checking
+        return self.plot_multi(
+            groups_name=groups_name,
+            ignore_kws=ignore_kws,
+            plot_erange=plot_erange,
+            plot_krange=None,
+            plot_rrange=plot_rrange,
+            ref=ref,
+            plot_legend=plot_legend,
+            legend_kws=legend_kws,
+            save_path=save_path,
+            ax=ax,
+            fig=fig,
+            plot_figures=plot_figures,
+        )
+
+    def plot_kr(
+        self,
+        groups_name: list[str] | None = None,
+        ignore_kws: list[str] | None = None,
+        plot_krange: str | tuple[float, float] | list[float] | None = "full",
+        plot_rrange: str | tuple[float, float] | list[float] | None = "full",
+        ref: bool = False,
+        plot_legend: bool | list[int] | str = True,
+        legend_kws: dict | None = None,
+        save_path: str | None = None,
+        ax: Sequence[Axes] | None = None,
+        fig: Figure | None = None,
+    ) -> Sequence[Axes]:
+
+        plot_figures = ["k", "r"]
+
+        # Although there is a error in the static type checking, it is ensured that the return is Sequence[Axes].
+        # TODO: fix to be consistent with the static type checking
+        return self.plot_multi(
+            groups_name=groups_name,
+            ignore_kws=ignore_kws,
+            plot_krange=plot_krange,
+            plot_rrange=plot_rrange,
+            ref=ref,
+            plot_legend=plot_legend,
+            legend_kws=legend_kws,
+            save_path=save_path,
+            ax=ax,
+            fig=fig,
+            plot_figures=plot_figures,
+        )
+
+    def plot_exkr(
+        self,
+        groups_name: list[str] | None = None,
+        ignore_kws: list[str] | None = None,
+        plot_erange: str | tuple[float, float] | list[float] | None = "full",
+        plot_krange: str | tuple[float, float] | list[float] | None = "full",
+        plot_rrange: str | tuple[float, float] | list[float] | None = "full",
+        ref: bool = False,
+        plot_legend: bool | list[int] | str = True,
+        legend_kws: dict | None = None,
+        save_path: str | None = None,
+        ax: Sequence[Axes] | None = None,
+        fig: Figure | None = None,
+    ) -> Sequence[Axes]:
+
+        plot_figures = ["e", "x", "k", "r"]
+
+        # Although there is a error in the static type checking, it is ensured that the return is Sequence[Axes].
+        # TODO: fix to be consistent with the static type checking
+        return self.plot_multi(
+            groups_name=groups_name,
+            ignore_kws=ignore_kws,
+            plot_erange=plot_erange,
+            plot_krange=plot_krange,
+            plot_rrange=plot_rrange,
+            ref=ref,
+            plot_legend=plot_legend,
+            legend_kws=legend_kws,
+            save_path=save_path,
+            ax=ax,
+            fig=fig,
+            plot_figures=plot_figures,
+        )
+
+    def plot_xkr(
+        self,
+        groups_name: list[str] | None = None,
+        ignore_kws: list[str] | None = None,
+        plot_krange: str | tuple[float, float] | list[float] | None = "full",
+        plot_rrange: str | tuple[float, float] | list[float] | None = "full",
+        ref: bool = False,
+        plot_legend: bool | list[int] | str = True,
+        legend_kws: dict | None = None,
+        save_path: str | None = None,
+        ax: Sequence[Axes] | None = None,
+        fig: Figure | None = None,
+    ) -> Sequence[Axes]:
+
+        plot_figures = ["x", "k", "r"]
+
+        # Although there is a error in the static type checking, it is ensured that the return is Sequence[Axes].
+        # TODO: fix to be consistent with the static type checking
+        return self.plot_multi(
+            groups_name=groups_name,
+            ignore_kws=ignore_kws,
+            plot_erange=None,
+            plot_krange=plot_krange,
+            plot_rrange=plot_rrange,
+            ref=ref,
+            plot_legend=plot_legend,
+            legend_kws=legend_kws,
+            save_path=save_path,
+            ax=ax,
+            fig=fig,
+            plot_figures=plot_figures,
+        )
+
+    def plot_xk(
+        self,
+        groups_name: list[str] | None = None,
+        ignore_kws: list[str] | None = None,
+        plot_krange: str | tuple[float, float] | list[float] | None = "full",
+        ref: bool = False,
+        plot_legend: bool | list[int] | str = True,
+        legend_kws: dict | None = None,
+        save_path: str | None = None,
+        ax: Sequence[Axes] | None = None,
+        fig: Figure | None = None,
+    ) -> Sequence[Axes]:
+
+        plot_figures = ["x", "k"]
+
+        # Although there is a error in the static type checking, it is ensured that the return is Sequence[Axes].
+        # TODO: fix to be consistent with the static type checking
+        return self.plot_multi(
+            groups_name=groups_name,
+            ignore_kws=ignore_kws,
+            plot_erange=None,
+            plot_krange=plot_krange,
+            ref=ref,
+            plot_legend=plot_legend,
+            legend_kws=legend_kws,
+            save_path=save_path,
+            ax=ax,
+            fig=fig,
+            plot_figures=plot_figures,
+        )
+
+    def plot_xr(
+        self,
+        groups_name: list[str] | None = None,
+        ignore_kws: list[str] | None = None,
+        plot_rrange: str | tuple[float, float] | list[float] | None = "full",
+        ref: bool = False,
+        plot_legend: bool | list[int] | str = True,
+        legend_kws: dict | None = None,
+        save_path: str | None = None,
+        ax: Sequence[Axes] | None = None,
+        fig: Figure | None = None,
+    ) -> Sequence[Axes]:
+
+        plot_figures = ["x", "r"]
+
+        # Although there is a error in the static type checking, it is ensured that the return is Sequence[Axes].
+        # TODO: fix to be consistent with the static type checking
+        return self.plot_multi(
+            groups_name=groups_name,
+            ignore_kws=ignore_kws,
+            plot_erange=None,
+            plot_rrange=plot_rrange,
+            ref=ref,
+            plot_legend=plot_legend,
+            legend_kws=legend_kws,
+            save_path=save_path,
+            ax=ax,
+            fig=fig,
+            plot_figures=plot_figures,
+        )
 
     def __dir__(self):
         return list(self.groups.keys())
