@@ -7,12 +7,14 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
+from numpy.random import f
 import scienceplots
 import scipy.optimize as opt
 import spdist
 from larch import Group
 from larch.io import merge_groups, read_ascii
-from larch.xafs import autobk, find_e0, pre_edge, xftf, xftr
+from larch.xafs import autobk, find_e0, pre_edge, xftf, xftr, feffrunner
+from larch.xrd import structure2feff
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from xasref import get_ref_dict
@@ -1070,11 +1072,22 @@ class XASAnalysis:
             raise Exception("Index out of range")
         return find_e0(self.groups[self.keys()[index]])
 
+    def plot_range_yaxis(
+        self, x: np.ndarray, y: np.ndarray, plot_range: list[float] | None = None
+    ) -> list[float]:
+
+        if plot_range:
+            index = np.where((x >= min(plot_range)) & (x <= max(plot_range)))
+            return [min(y[index]), max(y[index])]
+
+        return [min(y), max(y)]
+
     def plot_flat(
         self,
         groups_name: list[str] | None = None,
         ignore_kws: list[str] | None = None,
         plot_range: str | tuple[float, float] | list[float] | None = "full",
+        plot_range_y: tuple[float, float] | list[float] | None = None,
         ref: bool = False,
         plot_legend: bool = True,
         legend_kws: dict | None = None,
@@ -1090,6 +1103,7 @@ class XASAnalysis:
             groups_name(list): list of the group names. Default is None, which will plot all the groups.
             ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
             plot_range(str | tuple | list): plot range of the spectra. Default is "full".
+            plot_range_y(tuple | list): plot range of the y-axis. Default is None.
             ref(bool): plot the reference spectrum. Default is False.
             plot_legend(bool): plot the legend. Default is True.
             legend_kws(dict): legend keywords. Default is None.
@@ -1137,9 +1151,27 @@ class XASAnalysis:
         if not self.has_flat(groups_name):
             self.pre_edge()
 
+        y_range = [0, 0]
+
+        # define the plot_range for x
+        if isinstance(plot_range, list):
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
+        elif isinstance(plot_range, tuple):
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
+        elif plot_range.lower() == "full":
+            plot_range = None
+        elif plot_range.lower() == "xanes":
+            e0 = self.get_e0()
+            plot_range = [e0 - 20, e0 + 80]
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
+
         for i, group_name in enumerate(groups_name):
             group = self.groups[group_name]
             ax_plot.plot(group.energy, group.flat, label=group_name)
+
+            y_range_tmp = self.plot_range_yaxis(group.energy, group.flat, plot_range)
+            y_range[0] = min(y_range[0], y_range_tmp[0])
+            y_range[1] = max(y_range[1], y_range_tmp[1])
 
         if ref and hasattr(self, "reference"):
             if not hasattr(self.reference, "flat"):
@@ -1151,18 +1183,23 @@ class XASAnalysis:
                 label=self.reference.label,
             )
 
+            y_range_tmp = self.plot_range_yaxis(
+                self.reference.energy, self.reference.flat, plot_range
+            )
+            y_range[0] = min(y_range[0], y_range_tmp[0])
+            y_range[1] = max(y_range[1], y_range_tmp[1])
+
+        # defining the y_plot_range
+        if isinstance(plot_range_y, list) or isinstance(plot_range_y, tuple):
+            ax_plot.set_ylim(plot_range_y[0], plot_range_y[1])
+        else:
+            y_range_diff = abs(y_range[1] - y_range[0])
+            ax_plot.set_ylim(
+                y_range[0] - y_range_diff * 0.1, y_range[1] + y_range_diff * 0.1
+            )
+
         ax_plot.set_xlabel("Energy (eV)")
         ax_plot.set_ylabel("Normalized absorption coefficient")
-
-        if isinstance(plot_range, list):
-            ax_plot.set_xlim(plot_range[0], plot_range[1])
-        elif isinstance(plot_range, tuple):
-            ax_plot.set_xlim(plot_range[0], plot_range[1])
-        elif plot_range.lower() == "full":
-            pass
-        elif plot_range.lower() == "xanes":
-            e0 = self.get_e0()
-            ax_plot.set_xlim(e0 - 20, e0 + 80)
 
         if plot_legend:
             if legend_kws:
@@ -1201,6 +1238,7 @@ class XASAnalysis:
         groups_name: list[str] | None = None,
         ignore_kws: list[str] | None = None,
         plot_range: str | tuple[float, float] | list[float] | None = "xanes",
+        plot_range_y: tuple[float, float] | list[float] | None = None,
         ref: bool = True,
         plot_legend: bool = True,
         legend_kws: dict | None = None,
@@ -1218,6 +1256,7 @@ class XASAnalysis:
             groups_name(list): list of the group names. Default is None, which will plot all the groups.
             ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
             plot_range(str | tuple | list): plot range of the spectra. Default is "xanes".
+            plot_range_y(tuple | list): plot range of the y-axis. Default is None.
             ref(bool): plot the reference spectrum. Default is True.
             plot_legend(bool): plot the legend. Default is True.
             legend_kws(dict): legend keywords. Default is None.
@@ -1264,9 +1303,28 @@ class XASAnalysis:
         if not self.has_flat_refs(groups_name):
             self.pre_edge(calc_reference=True, calc_group=False)
 
+        # define the plot_range for x
+        if isinstance(plot_range, list):
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
+        elif isinstance(plot_range, tuple):
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
+            plot_range = list(plot_range)
+        elif plot_range.lower() == "full":
+            plot_range = None
+        elif plot_range.lower() == "xanes":
+            e0 = self.get_e0()
+            plot_range = [e0 - 20, e0 + 80]
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
+
+        y_range = [0, 0]
+
         for i, group_name in enumerate(groups_name):
             group = self.groups_ref[group_name]
             ax_plot.plot(group.energy, group.flat, label=group_name)
+
+            y_range_tmp = self.plot_range_yaxis(group.energy, group.flat, plot_range)
+            y_range[0] = min(y_range[0], y_range_tmp[0])
+            y_range[1] = max(y_range[1], y_range_tmp[1])
 
         if ref and hasattr(self, "reference"):
             if not hasattr(self.reference, "flat"):
@@ -1278,18 +1336,22 @@ class XASAnalysis:
                 label="ref: " + self.reference.label,
             )
 
+            y_range_tmp = self.plot_range_yaxis(
+                self.reference.energy, self.reference.flat, plot_range
+            )
+            y_range[0] = min(y_range[0], y_range_tmp[0])
+            y_range[1] = max(y_range[1], y_range_tmp[1])
+
         ax_plot.set_xlabel("Energy (eV)")
         ax_plot.set_ylabel("Normalized absorption coefficient")
 
-        if isinstance(plot_range, list):
-            ax_plot.set_xlim(plot_range[0], plot_range[1])
-        elif isinstance(plot_range, tuple):
-            ax_plot.set_xlim(plot_range[0], plot_range[1])
-        elif plot_range.lower() == "full":
-            pass
-        elif plot_range.lower() == "xanes":
-            e0 = self.get_e0()
-            ax_plot.set_xlim(e0 - 20, e0 + 80)
+        if isinstance(plot_range_y, list) or isinstance(plot_range_y, tuple):
+            ax_plot.set_ylim(plot_range_y[0], plot_range_y[1])
+        else:
+            y_range_diff = abs(y_range[1] - y_range[0])
+            ax_plot.set_ylim(
+                y_range[0] - y_range_diff * 0.1, y_range[1] + y_range_diff * 0.1
+            )
 
         if plot_legend:
             if legend_kws:
@@ -1311,6 +1373,7 @@ class XASAnalysis:
         groups_name: list[str] | None = None,
         ignore_kws: list[str] | None = None,
         plot_range: str | tuple[float, float] | list[float] | None = "full",
+        plot_range_y: tuple[float, float] | list[float] | None = None,
         ref: bool = False,
         plot_legend: bool = True,
         legend_kws: dict | None = None,
@@ -1328,6 +1391,7 @@ class XASAnalysis:
             groups_name(list): list of the group names. Default is None, which will plot all the groups.
             ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
             plot_range(str | tuple | list): plot range of the spectra. Default is "full".
+            plot_range_y(tuple | list): plot range of the y-axis. Default is None.
             ref(bool): plot the reference spectrum. Default is False.
             plot_legend(bool): plot the legend. Default is True.
             legend_kws(dict): legend keywords. Default is None.
@@ -1380,9 +1444,26 @@ class XASAnalysis:
 
         kweight = self.get_kweight()
 
+        if isinstance(plot_range, list):
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
+        elif isinstance(plot_range, tuple):
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
+            plot_range = list(plot_range)
+        elif plot_range.lower() == "full":
+            plot_range = None
+        else:
+            plot_range = None
+
+        y_range = [0, 0]
         for i, group_name in enumerate(groups_name):
             group = self.groups[group_name]
             ax_plot.plot(group.k, group.chi * group.k**kweight, label=group_name)
+
+            y_range_tmp = self.plot_range_yaxis(
+                group.k, group.chi * group.k**kweight, plot_range
+            )
+            y_range[0] = min(y_range[0], y_range_tmp[0])
+            y_range[1] = max(y_range[1], y_range_tmp[1])
 
         if ref and hasattr(self, "reference"):
             if not hasattr(self.reference, "chi"):
@@ -1395,7 +1476,16 @@ class XASAnalysis:
                 label=self.reference.label,
             )
 
+            y_range_tmp = self.plot_range_yaxis(
+                self.reference.k,
+                self.reference.chi * self.reference.k**kweight,
+                plot_range,
+            )
+            y_range[0] = min(y_range[0], y_range_tmp[0])
+            y_range[1] = max(y_range[1], y_range_tmp[1])
+
         ax_plot.set_xlabel(r"$k$ ($\mathrm{\AA}^{-1}$)")
+
         if kweight == 0:
             ax_plot.set_ylabel(r"$\chi(k)$")
         elif kweight == 1:
@@ -1403,12 +1493,14 @@ class XASAnalysis:
         elif kweight > 1:
             ax_plot.set_ylabel(r"$k^{}\chi(k)$".format(int(kweight)))
 
-        if isinstance(plot_range, list):
-            ax_plot.set_xlim(plot_range[0], plot_range[1])
-        elif isinstance(plot_range, tuple):
-            ax_plot.set_xlim(plot_range[0], plot_range[1])
-        elif plot_range.lower() == "full":
-            pass
+        # defining the y_plot_range
+        if isinstance(plot_range_y, list) or isinstance(plot_range_y, tuple):
+            ax_plot.set_ylim(plot_range_y[0], plot_range_y[1])
+        else:
+            y_range_diff = abs(y_range[1] - y_range[0])
+            ax_plot.set_ylim(
+                y_range[0] - y_range_diff * 0.1, y_range[1] + y_range_diff * 0.1
+            )
 
         if plot_legend:
             if legend_kws:
@@ -1431,6 +1523,7 @@ class XASAnalysis:
         groups_name: list[str] | None = None,
         ignore_kws: list[str] | None = None,
         plot_range: str | tuple[float, float] | list[float] | None = "full",
+        plot_range_y: tuple[float, float] | list[float] | None = None,
         ref: bool = False,
         plot_legend: bool = True,
         legend_kws: dict | None = None,
@@ -1447,6 +1540,7 @@ class XASAnalysis:
             groups_name(list): list of the group names. Default is None, which will plot all the groups.
             ignore_kws(list): list of the keywords to ignore in the group names. Default is None.
             plot_range(str | tuple | list): plot range of the spectra. Default is "full".
+            plot_range_y(tuple | list): plot range of the y-axis. Default is None.
             ref(bool): plot the reference spectrum. Default is False.
             plot_legend(bool): plot the legend. Default is True.
             legend_kws(dict): legend keywords. Default is None.
@@ -1500,9 +1594,23 @@ class XASAnalysis:
 
         kweight = self.get_kweight()
 
+        if isinstance(plot_range, list):
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
+        elif isinstance(plot_range, tuple):
+            ax_plot.set_xlim(plot_range[0], plot_range[1])
+        elif plot_range.lower() == "full":
+            plot_range = None
+        else:
+            plot_range = None
+
+        y_range = [0, 0]
         for i, group_name in enumerate(groups_name):
             group = self.groups[group_name]
             ax_plot.plot(group.r, group.chir_mag, label=group_name)
+
+            y_range_tmp = self.plot_range_yaxis(group.r, group.chir_mag, plot_range)
+            y_range[0] = min(y_range[0], y_range_tmp[0])
+            y_range[1] = max(y_range[1], y_range_tmp[1])
 
         if ref and hasattr(self, "reference"):
             if not hasattr(self.reference, "chir"):
@@ -1515,18 +1623,27 @@ class XASAnalysis:
                 self.reference.chir_mag,
                 label=self.reference.label,
             )
+
+            y_range_tmp = self.plot_range_yaxis(
+                self.reference.r, self.reference.chir_mag, plot_range
+            )
+            y_range[0] = min(y_range[0], y_range_tmp[0])
+            y_range[1] = max(y_range[1], y_range_tmp[1])
+
         ax_plot.set_xlabel(r"$R$ ($\mathrm{\AA}$)")
 
         ax_plot.set_ylabel(
             r"$|\chi(R)|$ ($\mathrm{\AA}^{" + str(int(-kweight - 1)) + "}$)"
         )
 
-        if isinstance(plot_range, list):
-            ax_plot.set_xlim(plot_range[0], plot_range[1])
-        elif isinstance(plot_range, tuple):
-            ax_plot.set_xlim(plot_range[0], plot_range[1])
-        elif plot_range.lower() == "full":
-            pass
+        # defining the y_plot_range
+        if isinstance(plot_range_y, list) or isinstance(plot_range_y, tuple):
+            ax_plot.set_ylim(plot_range_y[0], plot_range_y[1])
+        else:
+            y_range_diff = abs(y_range[1] - y_range[0])
+            ax_plot.set_ylim(
+                y_range[0] - y_range_diff * 0.1, y_range[1] + y_range_diff * 0.1
+            )
 
         if plot_legend:
             if legend_kws:
@@ -2348,6 +2465,68 @@ class XASAnalysis:
             fig=fig,
             plot_figures=plot_figures,
         )
+
+    # Feff calculation and fitting.
+
+    def calc_feff8l(self, feffinp: str, dir="./feff/", verbose: bool = True) -> Self:
+
+        if feffinp.endswith(".inp"):
+            with open(feffinp, "r") as f:
+                feffinp_str = f.read()
+        else:
+            feffinp_str = feffinp
+
+        os.makedirs(dir, exist_ok=True)
+        feffinp_path = os.path.join(dir, "feff.inp")
+
+        # Check if the calculation is already done
+        with open(feffinp_path, "r") as f:
+            if f.read() == feffinp_str and os.path.exists(
+                os.path.join(dir, "feff0001.dat")
+            ):
+                print("The calculation seems to be already done. Please delete the ")
+                return self
+
+        with open(feffinp_path, "w") as f:
+            f.write(feffinp_str)
+
+        feff = feffrunner(feffinp=feffinp_path, dir=dir, verbose=verbose)
+        feff.run()
+
+        return self
+
+    def calc_feff8l_from_structure(
+        self,
+        structure: str,
+        absorber: str,
+        dir="./feff/",
+        edge=None,
+        cluster_size=8.0,
+        absorber_site=1,
+        site_index=None,
+        extra_titles=None,
+        with_h=False,
+        version8=True,
+        fmt="cif",
+        rng_seed=None,
+        verbose: bool = True,
+    ) -> Self:
+
+        feffinp = structure2feff.structure2feffinp(
+            structure,
+            absorber,
+            edge=edge,
+            cluster_size=cluster_size,
+            absorber_site=absorber_site,
+            site_index=site_index,
+            extra_titles=extra_titles,
+            with_h=with_h,
+            version8=version8,
+            fmt="cif",
+            rng_seed=rng_seed,
+        )
+
+        return self.calc_feff8l(feffinp, dir=dir, verbose=verbose)
 
     def __dir__(self):
         return list(self.groups.keys())
